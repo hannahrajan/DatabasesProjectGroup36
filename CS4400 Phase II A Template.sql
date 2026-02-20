@@ -1,11 +1,10 @@
 -- CS4400: Introduction to Database Systems (Spring 2026)
 -- Phase II A: Create Table Statements [v0] [February 9th, 2026]
 
--- Team __
--- Team Member Name (GT username)
--- Team Member Name (GT username)
--- Team Member Name (GT username)
--- Team Member Name (GT username)
+-- Team 36
+-- Phil Abraham (pabraham9)
+-- Claire Lee (clee931)
+-- Hannah Rajan (hrajan30)
 
 -- Directions:
 -- Please follow all instructions for Phase II A as listed in the instructions document.
@@ -29,3 +28,135 @@ use media_streaming_service;
 /* You must enter your tables definitions (with primary, unique, and foreign key declarations,
 data types, and check constraints) here.  You may sequence them in any order that 
 works for you (and runs successfully). */
+
+drop table if exists content;
+create table content (
+ContentID varchar(20) not null,
+Title varchar(50) not null,
+Language varchar(15),
+Length int,
+Maturity enum('Explicit', 'Not Explicit'),
+Release_Date date,
+primary key(ContentID)
+);
+
+drop table if exists podcast_series;
+create table podcast_series (
+PodcastID char(7),
+Title varchar(50),
+Description varchar(300),
+primary key(PodcastID)
+);
+
+drop table if exists podcast_episode;
+create table podcast_episode (
+ContentID varchar(20) not null,
+Topic varchar(20),
+Episode_Number int,
+PodcastID char(7),
+primary key(ContentID),
+foreign key(ContentID) references content(ContentID),
+foreign key(PodcastID) references podcast_series(PodcastID)
+);
+
+drop table if exists subscription;
+create table subscription (
+SubscriptionID char(5),
+Cost double(5, 2),
+Start_Date date,
+End_Date date,
+primary key(SubscriptionID)
+);
+
+drop table if exists individual;
+create table individual (
+SubscriptionID char(5),
+Tier enum('Premium', 'Deluxe'),
+foreign key(SubscriptionID) references subscription(SubscriptionID)
+);
+
+drop table if exists family;
+create table family (
+SubscriptionID char(5),
+Family_Size int,
+foreign key(SubscriptionID) references subscription(SubscriptionID)
+);
+
+drop table if exists listener;
+create table listener (
+AccountID char(6) not null,
+Name varchar(30) not null,
+BDate date,
+Email varchar(50),
+Username varchar(30),
+Enrolled_Subscription char(5),
+primary key(AccountID),
+foreign key(Enrolled_Subscription) references subscription(SubscriptionID)
+);
+
+drop table if exists friends;
+create table friends (
+AccountID char(6) not null,
+Friend_AccountID char(6) not null,
+foreign key(AccountID) references listener(AccountID),
+foreign key(Friend_AccountID) references listener(AccountID)
+);
+
+drop table if exists creator;
+create table creator (
+AccountID char(6) not null,
+Name varchar(30) not null,
+BDate date,
+Email varchar(50),
+Stage_Name varchar(30),
+Biography varchar(100),
+Pinned_ContentID varchar(20),
+primary key(AccountID),
+foreign key(Pinned_ContentID) references content(ContentID)
+);
+
+drop table if exists creates;
+create table creates (
+Creator_AccountID char(6) not null,
+ContentID varchar(20) not null,
+foreign key(Creator_AccountID) references creator(AccountID),
+foreign key(ContentID) references content(ContentID)
+);
+
+drop table if exists album;
+create table album (
+Name varchar(30) not null,
+AccountID char(6) not null,
+primary key(Name, AccountID),
+foreign key(AccountID) references creator(AccountID)
+);
+
+drop table if exists song;
+create table song (
+ContentID varchar(20) not null,
+Album_Name varchar(30) not null,
+Album_CreatorID char(6) not null,
+primary key(ContentID),
+foreign key(Album_Name, Album_CreatorID) references album(Name, AccountID)
+);
+
+drop table if exists playlist;
+create table playlist (
+PlaylistID char(5) not null,
+Duration time,
+Name varchar(30),
+Listener_AccountID char(6) not null,
+primary key(PlaylistID),
+foreign key(Listener_AccountID) references listener(AccountID)
+);
+
+drop table if exists makes_up;
+create table makes_up (
+PlaylistID char(5) not null,
+ContentID varchar(20) not null,
+Track_Order int,
+primary key(PlaylistID),
+foreign key(ContentID) references content(ContentID)
+);
+
+
