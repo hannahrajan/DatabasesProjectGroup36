@@ -90,8 +90,11 @@ BDate date,
 Email varchar(50),
 Username varchar(30),
 Enrolled_Subscription char(5),
+Timestamp timestamp,
+Stream_ContentID varchar(20),
 primary key(AccountID),
-foreign key(Enrolled_Subscription) references subscription(SubscriptionID)
+foreign key(Enrolled_Subscription) references subscription(SubscriptionID),
+foreign key(Stream_ContentID) references content(ContentID)
 );
 
 drop table if exists friends;
@@ -145,7 +148,7 @@ ContentID varchar(20) not null,
 Album_Name varchar(30) not null,
 Album_CreatorID char(6) not null,
 primary key(ContentID),
-foreign key(Album_Name, Album_CreatorID) references album(Name, AccountID)
+foreign key(Album_Name, Album_CreatorID) references album(Name, CreatorID)
 );
 
 drop table if exists playlist;
