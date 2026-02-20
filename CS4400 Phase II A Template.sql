@@ -97,9 +97,9 @@ foreign key(Enrolled_Subscription) references subscription(SubscriptionID)
 drop table if exists friends;
 create table friends (
 AccountID char(6) not null,
-Friend_AccountID char(6) not null,
+FriendID char(6) not null,
 foreign key(AccountID) references listener(AccountID),
-foreign key(Friend_AccountID) references listener(AccountID)
+foreign key(FriendID) references listener(AccountID)
 );
 
 drop table if exists creator;
@@ -117,18 +117,26 @@ foreign key(Pinned_ContentID) references content(ContentID)
 
 drop table if exists creates;
 create table creates (
-Creator_AccountID char(6) not null,
+CreatorID char(6) not null,
 ContentID varchar(20) not null,
-foreign key(Creator_AccountID) references creator(AccountID),
+foreign key(CreatorID) references creator(AccountID),
 foreign key(ContentID) references content(ContentID)
 );
 
 drop table if exists album;
 create table album (
 Name varchar(30) not null,
-AccountID char(6) not null,
-primary key(Name, AccountID),
-foreign key(AccountID) references creator(AccountID)
+CreatorID char(6) not null,
+primary key(Name, CreatorID),
+foreign key(CreatorID) references creator(AccountID)
+);
+
+drop table if exists socials;
+create table socials (
+CreatorID char(6) not null,
+Handle varchar(30),
+Platform varchar(20),
+foreign key(CreatorID) references creator(AccountID)
 );
 
 drop table if exists song;
@@ -143,11 +151,10 @@ foreign key(Album_Name, Album_CreatorID) references album(Name, AccountID)
 drop table if exists playlist;
 create table playlist (
 PlaylistID char(5) not null,
-Duration time,
 Name varchar(30),
-Listener_AccountID char(6) not null,
+ListenerID char(6) not null,
 primary key(PlaylistID),
-foreign key(Listener_AccountID) references listener(AccountID)
+foreign key(ListenerID) references listener(AccountID)
 );
 
 drop table if exists makes_up;
