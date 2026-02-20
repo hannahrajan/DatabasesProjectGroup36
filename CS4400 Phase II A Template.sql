@@ -89,7 +89,7 @@ Name varchar(30) not null,
 BDate date not null,
 Email varchar(50) not null,
 Username varchar(30) not null,
-Enrolled_Subscription char(5),
+Enrolled_Subscription char(5) not null,
 Timestamp timestamp,
 Stream_ContentID varchar(20),
 primary key(AccountID),
@@ -109,9 +109,9 @@ drop table if exists creator;
 create table creator (
 AccountID char(6) not null,
 Name varchar(30) not null,
-BDate date,
-Email varchar(50),
-Stage_Name varchar(30),
+BDate date not null,
+Email varchar(50) not null,
+Stage_Name varchar(30) not null,
 Biography varchar(100),
 Pinned_ContentID varchar(20),
 primary key(AccountID),
@@ -137,24 +137,31 @@ foreign key(CreatorID) references creator(AccountID)
 drop table if exists socials;
 create table socials (
 CreatorID char(6) not null,
-Handle varchar(30),
-Platform varchar(20),
+Handle varchar(30) not null,
+Platform varchar(20) not null,
 foreign key(CreatorID) references creator(AccountID)
 );
 
 drop table if exists song;
 create table song (
 ContentID varchar(20) not null,
-Album_Name varchar(30) not null,
-Album_CreatorID char(6) not null,
+Album_Name varchar(30),
+Album_CreatorID char(6),
 primary key(ContentID),
 foreign key(Album_Name, Album_CreatorID) references album(Name, CreatorID)
+);
+
+drop table if exists genre;
+create table genre (
+SongID varchar(20) not null,
+Genre_Name varchar(30) not null,
+foreign key(SongID) references song(ContentID)
 );
 
 drop table if exists playlist;
 create table playlist (
 PlaylistID char(5) not null,
-Name varchar(30),
+Name varchar(30) not null,
 ListenerID char(6) not null,
 primary key(PlaylistID),
 foreign key(ListenerID) references listener(AccountID)
@@ -163,10 +170,10 @@ foreign key(ListenerID) references listener(AccountID)
 drop table if exists makes_up;
 create table makes_up (
 PlaylistID char(5) not null,
-ContentID varchar(20) not null,
-Track_Order int,
+SongID varchar(20) not null,
+Track_Order int not null,
 primary key(PlaylistID),
-foreign key(ContentID) references content(ContentID)
+foreign key(SongID) references song(ContentID)
 );
 
 
