@@ -33,27 +33,27 @@ drop table if exists content;
 create table content (
 ContentID varchar(20) not null,
 Title varchar(50) not null,
-Language varchar(15),
-Length int,
-Maturity enum('Explicit', 'Not Explicit'),
-Release_Date date,
+Length int not null,
+Maturity enum('Explicit', 'Not Explicit') not null,
+Release_Date date not null,
+Language varchar(15) not null,
 primary key(ContentID)
 );
 
 drop table if exists podcast_series;
 create table podcast_series (
-PodcastID char(7),
-Title varchar(50),
-Description varchar(300),
+PodcastID char(7) not null,
+Title varchar(50) not null,
+Description varchar(300) not null,
 primary key(PodcastID)
 );
 
 drop table if exists podcast_episode;
 create table podcast_episode (
 ContentID varchar(20) not null,
-Topic varchar(20),
-Episode_Number int,
-PodcastID char(7),
+Topic varchar(20) not null,
+Episode_Number int not null,
+PodcastID char(7) not null,
 primary key(ContentID),
 foreign key(ContentID) references content(ContentID),
 foreign key(PodcastID) references podcast_series(PodcastID)
@@ -61,24 +61,24 @@ foreign key(PodcastID) references podcast_series(PodcastID)
 
 drop table if exists subscription;
 create table subscription (
-SubscriptionID char(5),
-Cost double(5, 2),
-Start_Date date,
-End_Date date,
+SubscriptionID char(5) not null,
+Cost double(5, 2) not null,
+Start_Date date not null,
+End_Date date not null,
 primary key(SubscriptionID)
 );
 
 drop table if exists individual;
 create table individual (
-SubscriptionID char(5),
-Tier enum('Premium', 'Deluxe'),
+SubscriptionID char(5) not null,
+Tier enum('Premium', 'Deluxe') not null,
 foreign key(SubscriptionID) references subscription(SubscriptionID)
 );
 
 drop table if exists family;
 create table family (
-SubscriptionID char(5),
-Family_Size int,
+SubscriptionID char(5) not null,
+Family_Size int not null,
 foreign key(SubscriptionID) references subscription(SubscriptionID)
 );
 
@@ -86,9 +86,9 @@ drop table if exists listener;
 create table listener (
 AccountID char(6) not null,
 Name varchar(30) not null,
-BDate date,
-Email varchar(50),
-Username varchar(30),
+BDate date not null,
+Email varchar(50) not null,
+Username varchar(30) not null,
 Enrolled_Subscription char(5),
 Timestamp timestamp,
 Stream_ContentID varchar(20),
