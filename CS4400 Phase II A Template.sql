@@ -55,8 +55,10 @@ Topic varchar(20) not null,
 Episode_Number int not null,
 PodcastID char(7) not null,
 primary key(ContentID),
-foreign key(ContentID) references content(ContentID),
+foreign key(ContentID) references content(ContentID)
+on update restrict on delete cascade,
 foreign key(PodcastID) references podcast_series(PodcastID)
+on update restrict on delete cascade
 );
 
 drop table if exists subscription;
@@ -73,6 +75,7 @@ create table individual (
 SubscriptionID char(5) not null,
 Tier enum('Premium', 'Deluxe') not null,
 foreign key(SubscriptionID) references subscription(SubscriptionID)
+on update restrict on delete cascade
 );
 
 drop table if exists family;
@@ -80,6 +83,7 @@ create table family (
 SubscriptionID char(5) not null,
 Family_Size int not null,
 foreign key(SubscriptionID) references subscription(SubscriptionID)
+on update restrict on delete cascade
 );
 
 drop table if exists listener;
@@ -89,20 +93,24 @@ Name varchar(30) not null,
 BDate date not null,
 Email varchar(50) not null,
 Username varchar(30) not null,
-Enrolled_Subscription char(5) not null,
+Enrolled_Subscription char(5),
 Timestamp timestamp,
 Stream_ContentID varchar(20),
 primary key(AccountID),
-foreign key(Enrolled_Subscription) references subscription(SubscriptionID),
+foreign key(Enrolled_Subscription) references subscription(SubscriptionID)
+on update restrict on delete set null,
 foreign key(Stream_ContentID) references content(ContentID)
+on update restrict on delete set null
 );
 
 drop table if exists friends;
 create table friends (
 AccountID char(6) not null,
 FriendID char(6) not null,
-foreign key(AccountID) references listener(AccountID),
+foreign key(AccountID) references listener(AccountID)
+on update restrict on delete cascade,
 foreign key(FriendID) references listener(AccountID)
+on update restrict on delete cascade
 );
 
 drop table if exists creator;
@@ -116,14 +124,17 @@ Biography varchar(100),
 Pinned_ContentID varchar(20),
 primary key(AccountID),
 foreign key(Pinned_ContentID) references content(ContentID)
+on update restrict on delete set null
 );
 
 drop table if exists creates;
 create table creates (
 CreatorID char(6) not null,
 ContentID varchar(20) not null,
-foreign key(CreatorID) references creator(AccountID),
+foreign key(CreatorID) references creator(AccountID)
+on update restrict on delete cascade,
 foreign key(ContentID) references content(ContentID)
+on update restrict on delete cascade
 );
 
 drop table if exists album;
@@ -132,6 +143,7 @@ Name varchar(30) not null,
 CreatorID char(6) not null,
 primary key(Name, CreatorID),
 foreign key(CreatorID) references creator(AccountID)
+on update restrict on delete cascade
 );
 
 drop table if exists socials;
@@ -140,22 +152,26 @@ CreatorID char(6) not null,
 Handle varchar(30) not null,
 Platform varchar(20) not null,
 foreign key(CreatorID) references creator(AccountID)
+on update restrict on delete cascade
 );
 
 drop table if exists song;
 create table song (
-ContentID varchar(20) not null,
+SongID varchar(20) not null,
 Album_Name varchar(30),
 Album_CreatorID char(6),
-primary key(ContentID),
+foreign key(SongID) references content(ContentID)
+on update restrict on delete cascade,
 foreign key(Album_Name, Album_CreatorID) references album(Name, CreatorID)
+on update restrict on delete set null
 );
 
-drop table if exists genre;
-create table genre (
+drop table if exists genres;
+create table genres (
 SongID varchar(20) not null,
 Genre_Name varchar(30) not null,
-foreign key(SongID) references song(ContentID)
+foreign key(SongID) references song(SongID)
+on update restrict on delete cascade
 );
 
 drop table if exists playlist;
@@ -165,6 +181,7 @@ Name varchar(30) not null,
 ListenerID char(6) not null,
 primary key(PlaylistID),
 foreign key(ListenerID) references listener(AccountID)
+on update restrict on delete cascade
 );
 
 drop table if exists makes_up;
@@ -172,8 +189,10 @@ create table makes_up (
 PlaylistID char(5) not null,
 SongID varchar(20) not null,
 Track_Order int not null,
-primary key(PlaylistID),
-foreign key(SongID) references song(ContentID)
+foreign key(PlaylistID) references playlist(PlaylistID)
+on update restrict on delete cascade,
+foreign key(SongID) references song(SongID)
+on update restrict on delete cascade
 );
 
 
