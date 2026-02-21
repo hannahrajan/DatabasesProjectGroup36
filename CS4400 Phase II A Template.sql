@@ -68,7 +68,8 @@ SubscriptionID char(5) not null,
 Cost double(5, 2) not null,
 Start_Date date not null,
 End_Date date not null,
-primary key(SubscriptionID)
+primary key(SubscriptionID),
+check (DATEDIFF(Start_Date, End_Date) < 31)
 );
 
 drop table if exists individual;
@@ -84,7 +85,8 @@ create table family (
 SubscriptionID char(5) not null,
 Family_Size int not null,
 foreign key(SubscriptionID) references subscription(SubscriptionID)
-on update restrict on delete cascade
+on update restrict on delete cascade,
+check(Family_Size >= 2)
 );
 
 drop table if exists listener;
