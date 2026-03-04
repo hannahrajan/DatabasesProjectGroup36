@@ -100,8 +100,6 @@ begin
 	insert into song (contentID, creatorID, album_name) values
 	('SKYBLUE', 'JS9083', 'Starlight Meadows'),
 	('ECHOES', NULL, NULL),
-	('ORBIT', NULL, NULL),
-	('SUNSET', NULL, NULL),
 	('PAPER', 'MD5481', 'Sunflower Motel'),
 	('POLAROID', 'AB8247', 'Copper Lines'),
 	('MEADOW', 'JS9083', 'Starlight Meadows'),
@@ -268,9 +266,12 @@ and a list of the creator's song titles in descending order of current streams, 
 HINT: the GROUP_CONCAT function can be useful here. */
 -- -----------------------------------------------------------------------------
 create or replace view creator_songs_view as
-select stage_name 
-from creator
-where stage_name <> NULL;
+select stage_name, group_concat(contentID order by contentID asc)
+from creator join creates on accountID = creatorID
+where stage_name is not NULL and contentId in (select contentID from song)
+group by stage_name;
+-- look at listeners and see current streamed songs, figure out count(song)
+-- 
 
 select * from creator_songs_view;
 
