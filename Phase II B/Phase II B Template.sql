@@ -200,23 +200,15 @@ begin
 	('BRASS', 'AB8247'), 
 	('LOVE', 'JS9083');
 
-	insert into friends (friender, friendee) values 
-	('JS9083', 'LK7653'), 
-	('SM6701', 'LK7653'), 
-	('SM6701', 'KI4328'), 
-	('SM6701', 'DM1120'), 
-	('SM6701', 'CM7782'), 
-	('LK7653', 'SM6701'), 
-	('LK7653', 'JS9083'), 
-	('LK7653', 'KI4328'), 
-	('KI4328', 'SM6701'), 
-	('KI4328', 'LK7653'), 
-	('KI4328', 'JM5520'), 
+	insert into friends (friender, friendee) values
+    ('SM6701', 'LK7653'), 
+	('SM6701', 'KI4328'),
+	('KI4328', 'LK7653'),
 	('DM1120', 'SM6701'), 
-	('DM1120', 'CM7782'), 
-	('CM7782', 'SM6701'), 
-	('CM7782', 'DM1120'), 
-	('JM5520', 'KI4328');
+	('DM1120', 'CM7782'),
+	('CM7782', 'SM6701'),
+	('JM5520', 'KI4328'),
+	('JS9083', 'LK7653');
 
 	insert into socials (creatorID, platform, handle) values 
 	('JS9083', 'Instagram', 'ysean'), 
@@ -241,6 +233,7 @@ begin
 
 	insert into genres (songID, genre) values 
 	('SKYBLUE', 'Pop'),
+    ('SKYBLUE', 'Rock'),
 	('ECHOES', 'Alternative R&B'),
 	('ECHOES', 'Ambient'),
 	('ECHOES', 'Chillout'),
@@ -278,6 +271,8 @@ create or replace view creator_songs_view as
 select stage_name 
 from creator
 where stage_name <> NULL;
+
+select * from creator_songs_view;
 
 -- -----------------------------------------------------------------------------
 -- [2] friends_view()
