@@ -267,6 +267,8 @@ HINT: the GROUP_CONCAT function can be useful here. */
 -- -----------------------------------------------------------------------------
 
 -- test cases: insert
+
+-- test 1: multiple songs per creator
 insert into content (contentID, title, content_length, maturity, content_language, release_date) values
 ('VOCALOID', 'Aishite Aishite Aishite', 120, 'Explicit', 'Japanese', '2023-09-12');
 
@@ -290,19 +292,18 @@ select * from content where contentID in (select contentID from song);
 
 -- step 1: get total number of streams for each creator
 
--- get total streams for each song
+-- get total listeners for each song
 create or replace view popular_songs_view as 
-select contentID, count(*) as total_streams from listener 
+select contentID, count(*) as total_listeners from listener 
 join detailed_songs_view on streams=contentID 
 group by contentID 
-order by total_streams;
+order by total_listeners;
 
 -- get total streams per creator using the creates table
 create or replace view popular_creator_view as 
-select creatorID, total_streams from creates 
-join popular_songs_view as pop on pop.contentID=creates.contentID;
-
-select * from popular_creator_view;
+select creatorID, sum(total_listeners) as total_streams from creates 
+join popular_songs_view as pop on pop.contentID=creates.contentID
+group by creatorID;
 
 -- step 2: get all songs by non-null creator, merge above using creatorID
 create or replace view creator_songs_view as
@@ -313,9 +314,11 @@ where stage_name is not NULL
 group by stage_name, total_streams
 order by total_streams asc;
 
--- select * from creator_songs_view;
+select * from creator_songs_view;
 
 -- test cases: remove
+
+-- test 1
 delete from content where contentID = 'VOCALOID';
 delete from user where accountID = 'PA0904' or accountID = 'HR0916';
 
