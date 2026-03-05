@@ -265,15 +265,59 @@ the total number of listeners currently streaming any of that creator's songs,
 and a list of the creator's song titles in descending order of current streams, separated by a comma and a space.
 HINT: the GROUP_CONCAT function can be useful here. */
 -- -----------------------------------------------------------------------------
-create or replace view creator_songs_view as
-select stage_name, group_concat(contentID order by contentID asc)
-from creator join creates on accountID = creatorID
-where stage_name is not NULL and contentId in (select contentID from song)
-group by stage_name;
--- look at listeners and see current streamed songs, figure out count(song)
--- 
 
-select * from creator_songs_view;
+-- test cases: insert
+insert into content (contentID, title, content_length, maturity, content_language, release_date) values
+('VOCALOID', 'Aishite Aishite Aishite', 120, 'Explicit', 'Japanese', '2023-09-12');
+
+insert into song (contentID, creatorID, album_name) values
+('VOCALOID', NULL, NULL);
+
+insert into creates (contentID, creatorID) values 
+('VOCALOID', 'PN7413');
+
+insert into user (accountID, name, bdate, email) values
+('PA0904', 'Phil Abraham', '2006-09-04', 'phil@mail.com'),
+('HR0916', 'Hannah Rajan', '2006-09-16', 'hannah@mail.com');
+
+insert into listener (accountID, username, streams, timestamp, subscription) values 
+('PA0904', 'philharmonic', 'VOCALOID', 1, NULL),
+('HR0916', 'sailor_vaporeon', 'VOCALOID', 119, NULL);
+
+-- helper view: get all information on songs
+create or replace view detailed_songs_view as 
+select * from content where contentID in (select contentID from song);
+
+-- step 1: get total number of streams for each creator
+
+-- get total streams for each song
+create or replace view popular_songs_view as 
+select contentID, count(*) as total_streams from listener 
+join detailed_songs_view on streams=contentID 
+group by contentID 
+order by total_streams;
+
+-- get total streams per creator using the creates table
+create or replace view popular_creator_view as 
+select creatorID, total_streams from creates 
+join popular_songs_view as pop on pop.contentID=creates.contentID;
+
+select * from popular_creator_view;
+
+-- step 2: get all songs by non-null creator, merge above using creatorID
+create or replace view creator_songs_view as
+select stage_name, total_streams, group_concat(title) as songs
+from creator join creates on creator.accountID = creates.creatorID join detailed_songs_view as song_view on creates.contentID = song_view.contentID
+join popular_creator_view on creates.creatorID = popular_creator_view.creatorID
+where stage_name is not NULL
+group by stage_name, total_streams
+order by total_streams asc;
+
+-- select * from creator_songs_view;
+
+-- test cases: remove
+delete from content where contentID = 'VOCALOID';
+delete from user where accountID = 'PA0904' or accountID = 'HR0916';
 
 -- -----------------------------------------------------------------------------
 -- [2] friends_view()
