@@ -83,7 +83,8 @@ begin
 	('LOVE', 'Friendly Talks Ep 1: Love', 1800, 'Not Explicit', 'English', '2025-02-15');
 
 	insert into creator (accountID, stage_name, biography, pinned) values
-	('JS9083', 'Young Sean', 'I write songs for the greatest moments in life.', 'SKYBLUE'), ('MD5481', 'Delga', 'LA-based indie-pop singer blending bilingual hooks with lo-fi beats', 'PAPER'),
+	('JS9083', 'Young Sean', 'I write songs for the greatest moments in life.', 'SKYBLUE'), 
+    ('MD5481', 'Delga', 'LA-based indie-pop singer blending bilingual hooks with lo-fi beats', 'PAPER'),
 	('AB8247', 'Dre Ben', 'Toronto producer-rapper crafting jazzy boom-bap with modern soul', 'POLAROID'),
 	('PN7413', 'Priyaaa', NULL, NULL),
 	('MC9055', NULL, 'Former startup PM interviewing operators about the messy middle of building products', NULL),
@@ -267,7 +268,7 @@ HINT: the GROUP_CONCAT function can be useful here. */
 -- -----------------------------------------------------------------------------
 
 -- test cases: insert
-
+/*
 -- test 1: multiple songs per creator
 insert into content (contentID, title, content_length, maturity, content_language, release_date) values
 ('VOCALOID', 'Aishite Aishite Aishite', 120, 'Explicit', 'Japanese', '2023-09-12');
@@ -285,6 +286,7 @@ insert into user (accountID, name, bdate, email) values
 insert into listener (accountID, username, streams, timestamp, subscription) values 
 ('PA0904', 'philharmonic', 'VOCALOID', 1, NULL),
 ('HR0916', 'sailor_vaporeon', 'VOCALOID', 119, NULL);
+*/
 
 -- helper view: get all information on songs
 create or replace view detailed_songs_view as 
@@ -314,13 +316,15 @@ where stage_name is not NULL
 group by stage_name, total_streams
 order by total_streams asc;
 
-select * from creator_songs_view;
+-- select * from creator_songs_view;
 
 -- test cases: remove
 
+/*
 -- test 1
 delete from content where contentID = 'VOCALOID';
 delete from user where accountID = 'PA0904' or accountID = 'HR0916';
+*/
 
 -- -----------------------------------------------------------------------------
 -- [2] friends_view()
@@ -330,8 +334,14 @@ For each user, it displays their account id, full name, and number of distinct f
 If the user is not a listener, the view shows that the user has 0 friends.
 HINT: Can be useful here: UNION and the COALESCE function */
 -- -----------------------------------------------------------------------------
--- create or replace view friends_view as 
+-- not distinct, doesn't do listener view case
+create or replace view friends_view as 
+select accountID, name, coalesce(count(friendee), count(friender), 0) from user 
+left join friends on ((accountID = friendee) or (accountID = friender)) 
+group by accountID, name
+order by accountID;
 
+-- select * from friends_view;
 	
 -- -----------------------------------------------------------------------------
 -- [3] playlists_view()
@@ -345,8 +355,31 @@ should not appear in this view.
 HINT: Subqueries, min(), and max() can be helpful here.
 */
 -- -----------------------------------------------------------------------------
--- create or replace view playlists_view as
+create or replace view album_playlist_view as
+select playlistID, album_name, count(contentID) as num_songs from song
+join makes_up on contentID=songID
+group by playlistID, album_name 
+order by playlistID asc, num_songs desc, album_name asc;
 
+-- select * from album_playlist_view;
+
+-- have album_name + songs, need to pick album_name with max(songs) per playlist
+
+create or replace view top_album_playlist_view as
+select playlistID, album_name from album_playlist_view 
+group by playlistID, album_name;
+
+-- select * from top_album_playlist_view;
+
+create or replace view playlists_view as
+select playlist.playlistID as top_album from playlist 
+join top_album_playlist_view as freq where playlist.playlistID=freq.playlistID
+group by playlist.playlistID;
+
+-- select * from playlists_view;
+
+-- summation of songs on playlist from album
+-- order and select top one to display
     
 -- [4] two_creator_view
 -- -------------------------------------------------------------------------
@@ -357,7 +390,24 @@ and the number of genres this creator has made songs in.
 This view should only look at the 3rd and 4th rows of the creator table.
 */
 -- ---------------------------------------------------------------------------
--- create or replace view two_creator_view as
+
+-- find genres for all creators of songs
+create or replace view creator_genres_view as
+select accountID, group_concat(genre) as genres from creator
+join creates on accountID=creatorID
+join genres on contentID=songID
+where contentID in (select contentID from song)
+group by accountID;
+
+-- properly format each creator's handles and pinned songs if any, join with genres (above)
+create or replace view two_creator_view as
+select group_concat(concat(platform, ': ', handle)) as handles, pinned, genres from socials
+join creator on creatorID=creator.accountID
+left join creator_genres_view on creatorID=creator_genres_view.accountID
+group by creatorID
+limit 2 offset 2;
+
+-- select * from two_creator_view;
 
 
 -- [5] podcasts_view
@@ -366,8 +416,11 @@ This view should only look at the 3rd and 4th rows of the creator table.
 number of episodes, and total length in hours of all episodes combined.
 Report the length to 4 decimal places. */
 -- ---------------------------------------------------------------------------
--- create or replace view podcasts_view as
-
+create or replace view podcasts_view as
+select ps.podcastID, ps.title, count(*) as num_episodes, round((sum(content_length) / 3600.0), 4) as total_length from podcast_series as ps
+join podcast_episode as pe on pe.podcastID = ps.podcastID
+join content on pe.contentID = content.contentID
+group by ps.podcastID, ps.title;
 
 -- [6] subscriptions_view
 -- ---------------------------------------------------------------------------
@@ -379,8 +432,12 @@ and if the plan is Active, how many days remaining until expiration from the cur
 If the plan is Inactive, display null remaining days. Order this view by subscription ID ascending.
 HINT: The CURDATE and TIMESTAMPDIFF functions can be helpful here.*/
 -- ---------------------------------------------------------------------------
--- create or replace view subscriptions_view as
-
+create or replace view subscriptions_view as
+select subscription, accountID, subscription_type, max_family_size, tier, start_date, end_date, 
+if(timestampdiff(day,curdate(),end_date) <= 0, 'Inactive', 'Active') as status,
+if(timestampdiff(day,curdate(),end_date) <= 0, NULL, timestampdiff(day,curdate(),end_date)) as days_remaining from listener
+join subscription on subscription=subscriptionID 
+order by subscription asc;
 
 -- [7] genre_distribution_view
 -- ---------------------------------------------------------------------------
@@ -391,8 +448,6 @@ and separated by a semi-colon and a space.
 Order the genres of this view in descending order of how many songs belong to a genre. 
 HINT: GROUP_CONCAT() and the separator clause can be helpful here. */
 -- ---------------------------------------------------------------------------
--- create or replace view genre_distribution_view as
-
 
 -- [8] recent_subscriptions_view
 -- ---------------------------------------------------------------------------
