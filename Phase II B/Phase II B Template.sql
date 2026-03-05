@@ -276,9 +276,6 @@ insert into content (contentID, title, content_length, maturity, content_languag
 insert into song (contentID, creatorID, album_name) values
 ('VOCALOID', NULL, NULL);
 
-insert into creates (contentID, creatorID) values 
-('VOCALOID', 'PN7413');
-
 insert into user (accountID, name, bdate, email) values
 ('PA0904', 'Phil Abraham', '2006-09-04', 'phil@mail.com'),
 ('HR0916', 'Hannah Rajan', '2006-09-16', 'hannah@mail.com');
@@ -286,7 +283,35 @@ insert into user (accountID, name, bdate, email) values
 insert into listener (accountID, username, streams, timestamp, subscription) values 
 ('PA0904', 'philharmonic', 'VOCALOID', 1, NULL),
 ('HR0916', 'sailor_vaporeon', 'VOCALOID', 119, NULL);
+
+insert into creates (contentID, creatorID) values 
+('VOCALOID', 'PN7413');
 */
+
+/*
+-- test 2: null stage name
+insert into content (contentID, title, content_length, maturity, content_language, release_date) values
+('VOCALOID', 'Aishite Aishite Aishite', 120, 'Explicit', 'Japanese', '2023-09-12');
+
+insert into song (contentID, creatorID, album_name) values
+('VOCALOID', NULL, NULL);
+
+insert into user (accountID, name, bdate, email) values
+('PA0904', 'Phil Abraham', '2006-09-04', 'phil@mail.com'),
+('HR0916', 'Hannah Rajan', '2006-09-16', 'hannah@mail.com'),
+('CL0000', 'Claire Lee', '2006-01-01', 'claire@mail.com');
+
+insert into listener (accountID, username, streams, timestamp, subscription) values 
+('PA0904', 'philharmonic', 'VOCALOID', 1, NULL),
+('HR0916', 'sailor_vaporeon', 'VOCALOID', 119, NULL);
+
+insert into creator (accountID, stage_name, biography, pinned) values
+('CL0000', NULL, NULL, NULL);
+
+insert into creates (contentID, creatorID) values 
+('VOCALOID', 'CL0000');
+*/
+
 
 -- helper view: get all information on songs
 create or replace view detailed_songs_view as 
@@ -324,6 +349,12 @@ order by total_streams asc;
 -- test 1
 delete from content where contentID = 'VOCALOID';
 delete from user where accountID = 'PA0904' or accountID = 'HR0916';
+*/
+
+/*
+-- test 2
+delete from content where contentID = 'VOCALOID';
+delete from user where accountID = 'PA0904' or accountID = 'HR0916' or accountID = 'CL0000';
 */
 
 -- -----------------------------------------------------------------------------
@@ -406,9 +437,6 @@ join creator on creatorID=creator.accountID
 left join creator_genres_view on creatorID=creator_genres_view.accountID
 group by creatorID
 limit 2 offset 2;
-
--- select * from two_creator_view;
-
 
 -- [5] podcasts_view
 -- -------------------------------------------------------------------------
