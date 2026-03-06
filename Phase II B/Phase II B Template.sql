@@ -381,31 +381,40 @@ should not appear in this view.
 HINT: Subqueries, min(), and max() can be helpful here.
 */
 -- -----------------------------------------------------------------------------
+
+-- test: insert
+
+/*
+-- test 1: see if fully NULL playlist rejected
+insert into playlist (playlistID, name, listenerID) values
+('P6969', 'Horror Brainrot', 'SM6701');
+
+insert into makes_up (songID, playlistID, track_order) values 
+('ECHOES', 'P6969', 4);
+*/
+
 create or replace view album_playlist_view as
 select playlistID, album_name, count(contentID) as num_songs from song
 join makes_up on contentID=songID
+where album_name is not NULL
 group by playlistID, album_name 
 order by playlistID asc, num_songs desc, album_name asc;
 
-select * from album_playlist_view;
-
--- have album_name + songs, need to pick album_name with max(songs) per playlist
-
 create or replace view top_album_playlist_view as
-select playlistID, album_name from album_playlist_view 
-group by playlistID, album_name;
-
--- select * from top_album_playlist_view;
+select playlistID, max(num_songs) as max_songs, any_value(album_name) as top_album from album_playlist_view
+group by playlistID;
 
 create or replace view playlists_view as
-select playlist.playlistID as top_album from playlist 
-join top_album_playlist_view as freq where playlist.playlistID=freq.playlistID
-group by playlist.playlistID;
+select playlistID, top_album from top_album_playlist_view;
 
--- select * from playlists_view;
+select * from playlists_view;
 
--- summation of songs on playlist from album
--- order and select top one to display
+-- test: remove
+
+-- test 1
+/*
+delete from playlist where playlistID = 'P6969';
+*/
     
 -- [4] two_creator_view
 -- -------------------------------------------------------------------------
