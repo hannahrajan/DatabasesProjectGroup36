@@ -312,7 +312,6 @@ insert into creates (contentID, creatorID) values
 ('VOCALOID', 'CL0000');
 */
 
-
 -- helper view: get all information on songs
 create or replace view detailed_songs_view as 
 select * from content where contentID in (select contentID from song);
@@ -324,22 +323,17 @@ create or replace view popular_songs_view as
 select contentID, count(*) as total_listeners from listener 
 join detailed_songs_view on streams=contentID 
 group by contentID 
-order by total_listeners;
+order by total_listeners desc;
 
--- get total streams per creator using the creates table
-create or replace view popular_creator_view as 
-select creatorID, sum(total_listeners) as total_streams from creates 
-join popular_songs_view as pop on pop.contentID=creates.contentID
-group by creatorID;
-
--- step 2: get all songs by non-null creator, merge above using creatorID
 create or replace view creator_songs_view as
-select stage_name, total_streams, group_concat(title) as songs
-from creator join creates on creator.accountID = creates.creatorID join detailed_songs_view as song_view on creates.contentID = song_view.contentID
-join popular_creator_view on creates.creatorID = popular_creator_view.creatorID
+select stage_name, sum(total_listeners) as total_streams, group_concat(title order by total_listeners desc, title asc separator ', ') as songs from creates 
+left join popular_songs_view as pop on pop.contentID=creates.contentID
+join creator on accountID=creatorID
+join detailed_songs_view as songs_view on creates.contentID=songs_view.contentID
 where stage_name is not NULL
-group by stage_name, total_streams
-order by total_streams asc;
+group by stage_name
+having total_streams > 0
+order by total_streams;
 
 -- select * from creator_songs_view;
 
@@ -365,12 +359,13 @@ For each user, it displays their account id, full name, and number of distinct f
 If the user is not a listener, the view shows that the user has 0 friends.
 HINT: Can be useful here: UNION and the COALESCE function */
 -- -----------------------------------------------------------------------------
--- not distinct, doesn't do listener view case
 create or replace view friends_view as 
-select accountID, name, coalesce(count(friendee), count(friender), 0) from user 
-left join friends on ((accountID = friendee) or (accountID = friender)) 
-group by accountID, name
-order by accountID;
+select u.accountID, u.name, coalesce(count(distinct f.friend), 0) as friend_count from user u left join (
+select friender as userID, friendee as friend from friends
+union
+select friendee as userID, friender as friend from friends) f
+on u.accountID = f.userID
+group by u.accountID, u.name;
 
 -- select * from friends_view;
 	
@@ -392,7 +387,7 @@ join makes_up on contentID=songID
 group by playlistID, album_name 
 order by playlistID asc, num_songs desc, album_name asc;
 
--- select * from album_playlist_view;
+select * from album_playlist_view;
 
 -- have album_name + songs, need to pick album_name with max(songs) per playlist
 
@@ -476,6 +471,11 @@ and separated by a semi-colon and a space.
 Order the genres of this view in descending order of how many songs belong to a genre. 
 HINT: GROUP_CONCAT() and the separator clause can be helpful here. */
 -- ---------------------------------------------------------------------------
+create or replace view genre_distribution_view as
+select g.genre, count(g.songID) as num_songs, group_concat(distinct g.songID order by g.songID asc separator '; ') 
+as content_IDs from genres g
+group by genre
+order by num_songs desc;
 
 -- [8] recent_subscriptions_view
 -- ---------------------------------------------------------------------------
@@ -484,7 +484,10 @@ Select each listener's full name, the subscription ID they are enrolled in,
 and the cost of the plan. Order this view from newest to oldest enrollment date,
 breaking ties by the listeners' names in ascending alphabetical order. */
 -- ---------------------------------------------------------------------------
--- create or replace view recent_subscriptions_view as
+create or replace view recent_subscriptions_view as
+select u.name, s.subscriptionID, s.cost from user u join listener l on u.accountID = l.accountID join
+subscription s on l.subscription = s.subscriptionID
+order by s.start_date desc, u.name asc limit 3;
 
 
 -- [9] count_streams_view
@@ -496,7 +499,12 @@ Then, for each of these songs, select how many users are currently streaming the
 even if there are 0 users streaming. 
 HINT: COALESCE() can be helpful here. */
 -- ---------------------------------------------------------------------------
--- create or replace view count_streams_view as
+create or replace view count_streams_view as
+select ms.songID, coalesce(count(l.accountID), 0) as num_streaming from
+(select m.playlistID, m.songID from makes_up m where m.track_order =
+(select max(m2.track_order) from makes_up m2 where m2.playlistID = m.playlistID)) ms
+left join listener l on l.streams = ms.songID
+group by ms.songID;
 
 
 
