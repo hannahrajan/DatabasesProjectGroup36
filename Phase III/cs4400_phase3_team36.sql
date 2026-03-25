@@ -69,7 +69,39 @@ create procedure duplicate_playlist(
     in ip_new_playlistID varchar(20)
 )
 sp_main: begin
-	-- code here
+	-- counter to keep track of current song to select
+	declare curr_song_index int default 0;
+	-- check for null
+	if (ip_playlistID is null or ip_new_playlistID is null) then 
+		select "Either the playlistID or new playlistID are null.";
+        leave sp_main;
+	-- check if playlistID has at least one song
+	elseif not exists(select songID from makes_up where playlistID = ip_playlistID) then  
+		select concat("The playlist corresponding to ", ip_playlistID, " does not have any songs.");
+        leave sp_main;
+	-- check if playlistID already exists, either in playlist or makes_up
+	elseif (exists(select playlistID from playlist where playlistID = ip_new_playlistID) or 
+			exists(select playlistID from makes_up where playlistID = ip_new_playlistID)) then
+		select concat("There already exists a playlist with the ID ", ip_new_playlistID, ".");
+        leave sp_main;
+	else 
+		-- create new playlist using old playlist data
+		insert into playlist(playlistID, name, listenerID) values
+			(ip_new_playlistID,
+            concat("Copy of ", (select name from playlist where playlistID = ip_playlistID limit 1)),
+            (select listenerID from playlist where playlistID = ip_playlistID limit 1)
+            );
+		-- add all songs from old playlist to new playlist
+		while (select count(*) from makes_up where playlistID = ip_playlistID) > 
+        (select count(*) from makes_up where playlistID = ip_new_playlistID) do
+			insert into makes_up(songID, playlistID, track_order) values
+            ((select songID from makes_up where playlistID = ip_playlistID limit 1 offset curr_song_index),
+            ip_new_playlistID,
+            (select track_order from makes_up where playlistID = ip_playlistID limit 1 offset curr_song_index)
+            );
+            set curr_song_index = curr_song_index + 1; -- update song counter
+		end while;
+    end if;
 end //
 delimiter ;
 
