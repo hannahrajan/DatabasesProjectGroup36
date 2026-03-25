@@ -73,7 +73,7 @@ sp_main: begin
 	declare curr_song_index int default 0;
 	-- check for null
 	if (ip_playlistID is null or ip_new_playlistID is null) then 
-		select "Either the playlistID or new playlistID are null.";
+		select "At least one of the playlistIDs are null.";
         leave sp_main;
 	-- check if playlistID has at least one song
 	elseif not exists(select songID from makes_up where playlistID = ip_playlistID) then  
@@ -174,7 +174,31 @@ create procedure add_friend_connection (
     in ip_listenerID2 varchar(20)
 )
 sp_main: begin
-	-- code here
+	-- check for null
+	if (ip_listenerID1 is null or ip_listenerID2 is null) then 
+		select "At least one of the listenerIDs are null.";
+        leave sp_main;
+	-- check if the listenerIDs are the same
+	elseif (ip_listenerID1 = ip_listenerID2) then
+		select "A listener cannot friend themselves.";
+        leave sp_main;
+	-- check if listenerID1 is within the listener table
+	elseif not (exists(select accountID from listener where accountID = ip_listenerID1)) then
+		select concat("The listenerID ", ip_listenerID1, " does not exist.");
+        leave sp_main;
+	-- check if listenerID2 is within the listener table
+	elseif not (exists(select accountID from listener where accountID = ip_listenerID2)) then
+		select concat("The listenerID ", ip_listenerID2, " does not exist.");
+        leave sp_main;
+	-- check if the friendship between listenerID1 & listenerID2 exists already
+	elseif (exists(select friender, friendee from friends where ((friender = ip_listenerID1 and friendee = ip_listenerID2) or 
+    (friender = ip_listenerID2 and friendee = ip_listenerID1)))) then
+		select concat("A friendship between ", ip_listenerID1, " and ", ip_listenerID2, " already exists.");
+        leave sp_main;
+	else
+		-- record new friendship
+		insert into friends(friender, friendee) values (ip_listenerID1, ip_listenerID2);
+	end if;
 end //
 delimiter ; 
 
