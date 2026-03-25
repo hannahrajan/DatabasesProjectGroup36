@@ -1,11 +1,10 @@
 -- CS4400: Introduction to Database Systems (Spring 2026)
 -- Phase III: Stored Procedures [v0] [March 12th, 2026]
 
--- Team __
--- Team Member Name (GT username)
--- Team Member Name (GT username)
--- Team Member Name (GT username)
--- Team Member Name (GT username)
+-- Team 36
+-- Phil Abraham (pabraham9)
+-- Claire Lee (clee931)
+-- Hannah Rajan (hrajan30)
 
 -- Directions:
 -- Please follow all instructions for Phase III in the instructions document.
