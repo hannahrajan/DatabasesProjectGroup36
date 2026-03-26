@@ -364,7 +364,7 @@ create procedure create_user (
     in ip_user_type enum('creator', 'listener', 'both')
 )
 sp_main: begin
-    -- check for null
+    -- code here
 end //
 delimiter ; 
 
