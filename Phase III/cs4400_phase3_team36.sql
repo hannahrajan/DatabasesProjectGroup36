@@ -556,7 +556,7 @@ sp_main: begin
 		select 'Both playlists inputted are the same.';
         leave sp_main;
 	-- check if the playlists are owned by the same listener
-	elseif ((select count(listenerID) from playlist where (playlistID = ip_playlistID1 or playlistID = ip_playlistID2)) <> 1) then 
+	elseif not exists(select * from playlist as p1 join playlist as p2 on p1.listenerID = p2.listenerID where (p1.playlistID = 'P1111' and p2.playlistID = 'P2222')) then 
 		select 'The playlists are not owned by the same listener.';
         leave sp_main;
 	else 
