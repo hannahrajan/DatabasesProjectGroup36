@@ -406,6 +406,9 @@ create procedure upload_song (
     in ip_albumName varchar(100)
 )
 sp_main: begin
+	declare album_by_creator_exists varchar(100);
+	declare song_count int default 0;
+    declare creator_stage_name varchar(100);
 	-- check for null
 	if (ip_contentID is null or ip_contentLength is null or ip_title is null or ip_maturity is null or
 		ip_contentLanguage is null or ip_releaseDate is null or ip_creatorID is null) then 
@@ -425,19 +428,23 @@ sp_main: begin
         leave sp_main;
 	else
 		-- extra case: album exists, check specific criteria and add song to album
-		if album_name is not null then
+		if ip_albumName is not null then
 			-- check if the album is owned by the creator
-			if not exists(select album_name from album where (creatorID = ip_creatorID and album_name = ip_albumName)) then
+            select album_name into album_by_creator_exists from album where (creatorID = ip_creatorID and album_name = ip_albumName);
+			if album_by_creator_exists is null then
 				select concat('The album ', ip_albumName, ' does not exist or is not created by ', ip_creatorID, '.');
 				leave sp_main;
-			-- check if the album has fewer than 16 songs
-			elseif (select count(*) from song where album_name = ip_albumName) >= 16 then
+			end if;
+            -- check if the album has fewer than 16 songs
+            select count(*) into song_count from song where album_name = ip_albumName;
+			if song_count >= 16 then
 				select concat('The album ', ip_albumName, ' cannot have more than 16 songs.');
 				leave sp_main;
 			end if;
 		end if;
         -- update a creator's stage name if it doesn't exist 
-        if (not exists(select stage_name from creator where accountID = ip_creatorID)) then
+        select stage_name into creator_stage_name from creator where accountID = ip_creatorID;
+        if (creator_stage_name is null) then
 			update creator set stage_name = (select name from user where accountID = ip_creatorID) where accountID = ip_creatorID;
         end if;
 		-- create song (place into content table)
@@ -638,7 +645,34 @@ create procedure delete_episodes (
     in ip_num_episodes int
 )
 sp_main: begin
-    -- code here
+	declare num_episodes int default 0;
+    declare num_deleted_episodes int default 0;
+    declare curr_episodeID varchar(20);
+    -- check for null
+	if (ip_podcastID is null or ip_num_episodes < 0) then 
+		select 'At least one of the inputs is null or invalid.';
+        leave sp_main;
+	-- check if the podcast exists
+	elseif not (exists(select podcastID from podcast_series where podcastID = ip_podcastID)) then
+		select concat('The podcast ', ip_podcastID, ' does not exist.');
+        leave sp_main;
+	end if;
+    -- get total number of podcast episodes in the series
+    select count(*) into num_episodes from podcast_episode where podcastID = ip_podcastID;
+    -- if the requested amount to delete exceeds the total number of podcast episodes, don't delete
+    if (num_episodes < ip_num_episodes) then
+		select concat('The number of episodes requested to delete, ', ip_num_episodes, ', is greater than the total number of episodes.');
+        leave sp_main;
+    end if;
+    -- delete the number of podcast episodes requested
+    while num_deleted_episodes < ip_num_episodes do
+		-- find the podcast episode to delete
+		select contentID into curr_episodeID from podcast_episode where podcastID = ip_podcastID order by episode_number desc limit 1;
+        -- delete the podcast episode
+        delete from podcast_episode where contentID = curr_episodeID;
+        -- increment number of deleted podcast episodes
+        set num_deleted_episodes = num_deleted_episodes + 1;
+    end while;
 end //
 delimiter ;
 
