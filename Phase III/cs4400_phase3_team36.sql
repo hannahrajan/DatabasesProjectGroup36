@@ -192,7 +192,7 @@ sp_main: begin
         leave sp_main;
 	-- check if the friendship between listenerID1 & listenerID2 exists already
 	elseif (exists(select friender, friendee from friends where ((friender = ip_listenerID1 and friendee = ip_listenerID2) or 
-    (friender = ip_listenerID2 and friendee = ip_listenerID1)))) then
+		   (friender = ip_listenerID2 and friendee = ip_listenerID1)))) then
 		select concat("A friendship between ", ip_listenerID1, " and ", ip_listenerID2, " already exists.");
         leave sp_main;
 	else
@@ -258,7 +258,39 @@ create procedure create_playlist(
     in ip_contentID varchar(20)
 )
 sp_main: begin
-    -- code here
+	-- userID: local variable that stores the ID of the given listener via their username
+	declare userID varchar(20);
+    select accountID into userID from listener where username = ip_username limit 1; -- username should be unique!
+    -- check for null
+	if (ip_username is null or ip_playlist_name is null or ip_playlistID is null or ip_contentID is null) then 
+		select "At least one of the inputs are null.";
+        leave sp_main;
+	-- check if the username is within the listener table
+	elseif not (exists(select username from listener where username = ip_username)) then
+		select concat("The listener username ", ip_username, " does not exist.");
+        leave sp_main;
+	-- check if the song is within the songs table
+	elseif not (exists(select contentID from song where contentID = ip_contentID)) then
+		select concat("The songID ", contentID, " does not exist.");
+        leave sp_main;
+	-- check if the playlist already exists 
+	elseif not (exists(select playlistID from playlist where playlistID = ip_playlistID)) then
+		select concat("A playlist with ID ", ip_playlistID, " already exists.");
+        leave sp_main;
+	-- check if the listener, if they don't have a subscription, doesn't make more than 5 playlists 
+	elseif ((not (exists(select subscription from listener where username = ip_username))) and 
+		   ((select count(*) from playlist where listenerID = userID) = 5)) then
+		select concat("The ∂listener ", ip_username, " does not have a subscription and cannot make more than 5 playlists.");
+        leave sp_main;
+	else
+		-- create playlist
+		insert into playlist(playlistID, name, listenerID) values
+			(ip_playlistID,
+            ip_playlist_name,
+            userID);
+		-- add initial song to the playlist
+        call add_song_to_playlist(ip_username, ip_playlistID, ip_contentID);
+	end if;
 end //
 delimiter ;
 
