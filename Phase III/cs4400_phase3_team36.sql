@@ -73,22 +73,22 @@ sp_main: begin
 	declare curr_song_index int default 0;
 	-- check for null
 	if (ip_playlistID is null or ip_new_playlistID is null) then 
-		select "At least one of the playlistIDs are null.";
+		select 'At least one of the playlistIDs are null.';
         leave sp_main;
 	-- check if playlistID has at least one song
 	elseif not exists(select songID from makes_up where playlistID = ip_playlistID) then  
-		select concat("The playlist corresponding to ", ip_playlistID, " does not have any songs.");
+		select concat('The playlist corresponding to ', ip_playlistID, ' does not have any songs.');
         leave sp_main;
 	-- check if playlistID already exists, either in playlist or makes_up
 	elseif (exists(select playlistID from playlist where playlistID = ip_new_playlistID) or 
 			exists(select playlistID from makes_up where playlistID = ip_new_playlistID)) then
-		select concat("There already exists a playlist with the ID ", ip_new_playlistID, ".");
+		select concat('There already exists a playlist with the ID ', ip_new_playlistID, '.');
         leave sp_main;
 	else 
 		-- create new playlist using old playlist data
 		insert into playlist(playlistID, name, listenerID) values
 			(ip_new_playlistID,
-            concat("Copy of ", (select name from playlist where playlistID = ip_playlistID limit 1)),
+            concat('Copy of ', (select name from playlist where playlistID = ip_playlistID limit 1)),
             (select listenerID from playlist where playlistID = ip_playlistID limit 1)
             );
 		-- add all songs from old playlist to new playlist
@@ -176,24 +176,24 @@ create procedure add_friend_connection (
 sp_main: begin
 	-- check for null
 	if (ip_listenerID1 is null or ip_listenerID2 is null) then 
-		select "At least one of the listenerIDs are null.";
+		select 'At least one of the listenerIDs are null.';
         leave sp_main;
 	-- check if the listenerIDs are the same
 	elseif (ip_listenerID1 = ip_listenerID2) then
-		select "A listener cannot friend themselves.";
+		select 'A listener cannot friend themselves.';
         leave sp_main;
 	-- check if listenerID1 is within the listener table
 	elseif not (exists(select accountID from listener where accountID = ip_listenerID1)) then
-		select concat("The listenerID ", ip_listenerID1, " does not exist.");
+		select concat('The listenerID ', ip_listenerID1, ' does not exist.');
         leave sp_main;
 	-- check if listenerID2 is within the listener table
 	elseif not (exists(select accountID from listener where accountID = ip_listenerID2)) then
-		select concat("The listenerID ", ip_listenerID2, " does not exist.");
+		select concat('The listenerID ', ip_listenerID2, ' does not exist.');
         leave sp_main;
 	-- check if the friendship between listenerID1 & listenerID2 exists already
 	elseif (exists(select friender, friendee from friends where ((friender = ip_listenerID1 and friendee = ip_listenerID2) or 
 		   (friender = ip_listenerID2 and friendee = ip_listenerID1)))) then
-		select concat("A friendship between ", ip_listenerID1, " and ", ip_listenerID2, " already exists.");
+		select concat('A friendship between ', ip_listenerID1, ' and ', ip_listenerID2, ' already exists.');
         leave sp_main;
 	else
 		-- record new friendship
@@ -260,29 +260,30 @@ create procedure create_playlist(
 sp_main: begin
 	-- userID: local variable that stores the ID of the given listener via their username
 	declare userID varchar(20);
-    select accountID into userID from listener where username = ip_username limit 1; -- username should be unique!
     -- check for null
 	if (ip_username is null or ip_playlist_name is null or ip_playlistID is null or ip_contentID is null) then 
-		select "At least one of the inputs are null.";
+		select 'At least one of the inputs are null.';
         leave sp_main;
 	-- check if the username is within the listener table
 	elseif not (exists(select username from listener where username = ip_username)) then
-		select concat("The listener username ", ip_username, " does not exist.");
+		select concat('The listener username ', ip_username, ' does not exist.');
         leave sp_main;
 	-- check if the song is within the songs table
 	elseif not (exists(select contentID from song where contentID = ip_contentID)) then
-		select concat("The songID ", contentID, " does not exist.");
+		select concat('The songID ', contentID, ' does not exist.');
         leave sp_main;
 	-- check if the playlist already exists 
 	elseif not (exists(select playlistID from playlist where playlistID = ip_playlistID)) then
-		select concat("A playlist with ID ", ip_playlistID, " already exists.");
+		select concat('A playlist with ID ', ip_playlistID, ' already exists.');
         leave sp_main;
 	-- check if the listener, if they don't have a subscription, doesn't make more than 5 playlists 
 	elseif ((not (exists(select subscription from listener where username = ip_username))) and 
-		   ((select count(*) from playlist where listenerID = userID) = 5)) then
-		select concat("The ∂listener ", ip_username, " does not have a subscription and cannot make more than 5 playlists.");
+		   ((select count(*) from playlist where listenerID = userID) >= 5)) then
+		select concat('The listener ', ip_username, ' does not have a subscription and cannot make more than 5 playlists.');
         leave sp_main;
 	else
+		-- grab userID value
+        select accountID into userID from listener where username = ip_username; 
 		-- create playlist
 		insert into playlist(playlistID, name, listenerID) values
 			(ip_playlistID,
@@ -363,7 +364,7 @@ create procedure create_user (
     in ip_user_type enum('creator', 'listener', 'both')
 )
 sp_main: begin
-    -- code here
+    -- check for null
 end //
 delimiter ; 
 
@@ -394,7 +395,47 @@ create procedure upload_song (
     in ip_albumName varchar(100)
 )
 sp_main: begin
-	-- code here
+	-- check for null
+	if (ip_contentID is null or ip_contentLength is null or ip_title is null or ip_maturity is null or
+		ip_contentLanguage is null or ip_releaseDate is null or ip_creatorID is null) then 
+		select 'At least one of the inputs are null.';
+        leave sp_main;
+	-- check if the song is unique (doesn't exist in the songs table)
+	elseif exists(select contentID from song where contentID = ip_contentID) then
+		select concat('A song with ID ', ip_contentID, ' already exists.');
+        leave sp_main;
+	-- check if the creatorID exists in the creator table
+	elseif not exists(select accountID from creator where accountID = ip_creatorID) then
+		select concat('The creator ', ip_creatorID, ' does not exist.');
+        leave sp_main;
+	-- check if the content length is between 60 and 600 seconds
+	elseif (ip_contentLength < 60 or ip_contentLength > 600) then
+		select concat('The length of the song is not within 60 - 600 seconds.');
+        leave sp_main;
+	else
+		-- extra case: album exists, check specific criteria and add song to album
+		if album_name is not null then
+			-- check if the album is owned by the creator
+			if not exists(select album_name from album where (creatorID = ip_creatorID and album_name = ip_albumName)) then
+				select concat('The album ', ip_albumName, ' does not exist or is not created by ', ip_creatorID, '.');
+				leave sp_main;
+			-- check if the album has fewer than 16 songs
+			elseif (select count(*) from song where album_name = ip_albumName) >= 16 then
+				select concat('The album ', ip_albumName, ' cannot have more than 16 songs.');
+				leave sp_main;
+			end if;
+		end if;
+        -- update a creator's stage name if it doesn't exist 
+        if (not exists(select stage_name from creator where accountID = ip_creatorID)) then
+			update creator set stage_name = (select name from user where accountID = ip_creatorID) where accountID = ip_creatorID;
+        end if;
+		-- create song (place into content table)
+        insert into content(contentID, title, content_length, maturity, content_language, release_date) values 
+        (ip_contentID, ip_title, ip_contentLength, ip_maturity, ip_contentLanguage, ip_releaseDate);
+        -- create song (place into song table)
+        insert into song(contentID, creatorID, album_name) values
+        (ip_contentID, ip_creatorID, ip_albumName);
+	end if;
 end //
 delimiter ; 
 
