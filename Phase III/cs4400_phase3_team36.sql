@@ -71,35 +71,46 @@ create procedure duplicate_playlist(
 sp_main: begin
 	-- counter to keep track of current song to select
 	declare curr_song_index int default 0;
+    declare old_playlist_name varchar(100);
+    declare old_listenerID varchar(20);
+    declare song_count int default 0;
+    declare playlist_exists int default 0;
+    declare curr_songID varchar(20);
+    declare curr_track_order int default 0;
 	-- check for null
 	if (ip_playlistID is null or ip_new_playlistID is null) then 
 		select 'At least one of the playlistIDs are null.';
         leave sp_main;
+	end if;
+	-- update song count
+    select count(*) into song_count from makes_up where playlistID = ip_playlistID;
 	-- check if playlistID has at least one song
-	elseif not exists(select songID from makes_up where playlistID = ip_playlistID) then  
+	if song_count = 0 then  
 		select concat('The playlist corresponding to ', ip_playlistID, ' does not have any songs.');
         leave sp_main;
-	-- check if playlistID already exists, either in playlist or makes_up
-	elseif (exists(select playlistID from playlist where playlistID = ip_new_playlistID) or 
-			exists(select playlistID from makes_up where playlistID = ip_new_playlistID)) then
+	end if;
+    -- update number of playlists that currently exist with the same ID as the new playlist
+    select count(*) into playlist_exists from playlist where playlistID = ip_new_playlistID;
+	-- check if the new playlistID already exists
+	if playlist_exists > 0 then
 		select concat('There already exists a playlist with the ID ', ip_new_playlistID, '.');
         leave sp_main;
 	else 
+		-- grab old playlist data
+		select name, listenerID into old_playlist_name, old_listenerID from playlist where playlistID = ip_playlistID;
 		-- create new playlist using old playlist data
 		insert into playlist(playlistID, name, listenerID) values
-			(ip_new_playlistID,
-            concat('Copy of ', (select name from playlist where playlistID = ip_playlistID limit 1)),
-            (select listenerID from playlist where playlistID = ip_playlistID limit 1)
-            );
+		(ip_new_playlistID, concat('Copy of ', old_playlist_name), old_listenerID);
 		-- add all songs from old playlist to new playlist
-		while (select count(*) from makes_up where playlistID = ip_playlistID) > 
-        (select count(*) from makes_up where playlistID = ip_new_playlistID) do
+		while curr_song_index < song_count do
+			-- fetch values to add into the new playlist
+			select songID, track_order into curr_songID, curr_track_order from 
+            makes_up where playlistID = ip_playlistID limit 1 offset curr_song_index;
+            -- insert current song and its values into the new playlist
 			insert into makes_up(songID, playlistID, track_order) values
-            ((select songID from makes_up where playlistID = ip_playlistID limit 1 offset curr_song_index),
-            ip_new_playlistID,
-            (select track_order from makes_up where playlistID = ip_playlistID limit 1 offset curr_song_index)
-            );
-            set curr_song_index = curr_song_index + 1; -- update song counter
+            (curr_songID, ip_new_playlistID,curr_track_order);
+			-- update song counter
+            set curr_song_index = curr_song_index + 1;
 		end while;
     end if;
 end //
@@ -511,6 +522,11 @@ HINT: When you delete songs from playlist 2 that are already in playlist 1, you 
 to use a nested query with aliasing. 
 */
 -- -----------------------------------------------------------------------------
+
+-- common_songs_view: displays songs in makes_up table shared by at least two playlists.
+create or replace view common_songs_view as 
+select m1.songID as shared_songID, m1.playlistID as playlistID1, m2.playlistID as playlistID2 from makes_up as m1 join makes_up as m2 on m1.songID = m2.songID;
+
 drop procedure if exists merge_playlists;
 delimiter //
 create procedure merge_playlists (
@@ -518,10 +534,54 @@ create procedure merge_playlists (
     in ip_playlistID2 varchar(20) -- second playlist
 )
 sp_main: begin
-	-- code here
+	-- current_songID: local variable that stores the ID of the current song needing to be deleted from or added to a playlist.
+	declare current_songID varchar(20);
+    -- current_track_order: local variable that stores the current track order of the next song needing to be added. 
+    declare current_track_order int;
+	-- check for null
+	if (ip_playlistID1 is null or ip_playlistID2 is null) then 
+		select 'At least one of the playlistIDs are null.';
+        leave sp_main;
+    -- check if the playlists exist
+	elseif ((select count(*) from playlist where (playlistID = ip_playlistID1 or playlistID = ip_playlistID2)) <> 2) then 
+		select 'At least one of the playlistIDs do not exist.';
+        leave sp_main;
+	-- check if the playlists are not the same
+	elseif (ip_playlistID1 = ip_playlistID2) then 
+		select 'Both playlists inputted are the same.';
+        leave sp_main;
+	-- check if the playlists are owned by the same listener
+	elseif ((select count(listenerID) from playlist where (playlistID = ip_playlistID1 or playlistID = ip_playlistID2)) <> 1) then 
+		select 'The playlists are not owned by the same listener.';
+        leave sp_main;
+	else 
+		-- delete all duplicate songs from second playlist
+		while (exists(select * from common_songs_view where playlistID1 = ip_playlistID1 and playlistID2 = ip_playlistID2)) do
+			-- select first shared song between the two playlists
+			select shared_songID into current_songID from common_songs_view where playlistID1 = ip_playlistID1 and playlistID2 = ip_playlistID2 limit 1;
+            -- remove song from second playlist
+            delete from makes_up where songID = current_songID and playlistID = ip_playlistID2;
+        end while;
+        -- grab current track order maximum from the first playlist and offset by one for the second playlist's songs
+        select max(track_order) + 1 into current_track_order from makes_up where playlistID = ip_playlistID1;
+        -- add all remaining songs from second playlist to first playlist
+		while (exists(select * from makes_up where playlistID = ip_playlistID2)) do
+			-- select first song from the second playlist
+			select songID into current_songID from makes_up where playlistID = ip_playlistID2 limit 1;
+            insert into makes_up (songID, playlistID, track_order) values 
+            (current_songID, ip_playlistID1, current_track_order);
+            set current_track_order = current_track_order + 1; -- update track order
+            -- remove song from second playlist
+            -- removing the song here allows for the second playlist to be deleted without any dependencies
+            delete from makes_up where songID = current_songID and playlistID = ip_playlistID2;
+        end while;
+        -- resequence track orders
+        call resequence_track_order(ip_playlistID1);
+        -- delete second playlist
+        delete from playlist where playlistID = ip_playlistID2;
+	end if;
 end //
 delimiter ;
-
 
 -- -----------------------------------------------------------------------------
 -- [15] stop_stream()
