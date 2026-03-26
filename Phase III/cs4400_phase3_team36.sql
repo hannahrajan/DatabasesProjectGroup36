@@ -284,7 +284,7 @@ sp_main: begin
 		select concat('The songID ', contentID, ' does not exist.');
         leave sp_main;
 	-- check if the playlist already exists 
-	elseif not (exists(select playlistID from playlist where playlistID = ip_playlistID)) then
+	elseif (exists(select playlistID from playlist where playlistID = ip_playlistID)) then
 		select concat('A playlist with ID ', ip_playlistID, ' already exists.');
         leave sp_main;
 	-- check if the listener, if they don't have a subscription, doesn't make more than 5 playlists 
@@ -297,9 +297,7 @@ sp_main: begin
         select accountID into userID from listener where username = ip_username; 
 		-- create playlist
 		insert into playlist(playlistID, name, listenerID) values
-			(ip_playlistID,
-            ip_playlist_name,
-            userID);
+		(ip_playlistID, ip_playlist_name, userID);
 		-- add initial song to the playlist
         call add_song_to_playlist(ip_username, ip_playlistID, ip_contentID);
 	end if;
