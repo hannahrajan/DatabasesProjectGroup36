@@ -45,7 +45,33 @@ create procedure renew_subscription(
     in ip_new_date date
 )
 sp_main: begin
-	-- code here
+	-- variable declaration
+	declare subID varchar(20);
+    declare current_end_date date;
+    
+    -- check both inputs are non-null
+    if ip_listenerID is null or ip_new_date is null then
+    leave sp_main;
+	end if;
+    -- check if listener exists
+    select subscription into subID from listener where accountID = ip_listenerID;
+	if subID is null then
+	leave sp_main;
+	end if;
+    
+    -- check if end date is after the current date
+    select end_date into current_end_date from subscription where subscriptionID = subID;
+	if ip_new_date <= curdate() then
+	leave sp_main;
+	end if;
+    
+    -- check if end date is later than the subscription's current end date
+	if ip_new_date <= current_end_date then
+	leave sp_main;
+	end if;
+    
+    -- update
+    update subscription set end_date = ip_new_date where subscriptionID = subID;
 end //
 delimiter ;
 
@@ -166,7 +192,42 @@ create procedure stream_content(
     in ip_contentID varchar(20)
 )
 sp_main: begin
-	-- code here
+	-- variable declaration
+	declare listener_ID varchar(20);
+    declare content_ID varchar(20);
+    declare age int;
+    declare content_maturity varchar(20);
+    
+    -- check if both inputs are non-null
+    if ip_listenerID is null or ip_contentID is null then
+	leave sp_main;
+	end if;
+    
+    -- check if listener exists
+    select accountID into listener_ID from listener where accountID = ip_listenerID;
+    if listenerID is null then
+	leave sp_main;
+	end if;
+    
+    -- check if content exists
+	select contentID into content_ID from content where contentID = ip_contentID;
+    if listenerID is null then
+	leave sp_main;
+	end if;
+    
+    -- age computation
+    select timestampdiff(year, bdate, curdate()) into age from user where accountID = ip_listenerID;
+    
+    -- maturity
+    select maturity into content_maturity from content where contentID = ip_contentID;
+    
+    -- check if the content is marked 'Explicit' and the listener is at least 18 years old
+    if age < 18 and content_maturity = 'EXPLICIT' then
+	leave sp_main;
+	end if;
+    
+    -- update
+    update listener set content_ID = ip_contentID, Timestamp = 0 where accountID = ip.listenerID;
 end //
 delimiter ;
 
@@ -245,7 +306,29 @@ drop procedure if exists cancel_subscription;
 delimiter //
 create procedure cancel_subscription(in ip_subscription_id varchar(20))
 sp_main: begin
-    -- code here
+	-- variable declaration
+    declare subscription_ID varchar(20);
+    
+    -- check if input is non-null
+    if ip_subscription_id is null then
+    leave sp_main;
+    end if;
+    
+    -- check if subscription exists
+    select subscriptionID into subscription_ID from subscription where subscriptionID = ip_subscription_id;
+    if subscription_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- delete friendship if either friend is participating in the subscription
+    delete from friends where friender in (select accountID from listener where subscription = ip_subscription_id)
+    or friendee in (select accountID from listener where subscription = ip_subscription_id);
+    
+    -- delete all playlists owned by listeners participating in the subscription
+    delete from playlist where listenerID in (select accountID from listener where subscription = ip_subscription_id); 
+    
+    -- remove subscription record
+    delete from subscription where subscriptionID = ip_subscription_id;
 end //
 delimiter ;
 
@@ -341,7 +424,46 @@ create procedure start_playlist(
     in ip_playlistID varchar(20)
 )
 sp_main: begin
-    -- code here
+	-- variable declaration
+    declare user_name varchar(100);
+    declare playlist_ID varchar(20);
+    declare listener_ID varchar(20);
+    declare first_song varchar(20);
+    
+    -- check if inputs are non-null
+    if user_name is null or playlist_ID is null then
+	leave sp_main;
+	end if;
+    
+    -- check if listener exists
+    select username into user_name from listener where username = ip_username;
+    if user_name is null then
+    leave sp_main;
+    end if;
+    
+    -- check if playlist exists
+    select playlistID into playlist_ID from playlist where playlistID = ip_playlistID;
+    if playlist_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if playlist belongs to the listener
+    select accountID into listener_ID from listener where username = ip_username;
+    select playlistID into playlist_ID from playlist where listener_ID = listenerID and playlistID = ip_playlistID;
+    if playlist_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if playlist has songs
+    select s.songID into first_song from makes_up m join song s on m.playlistID = s.songID
+    where m.playlistID = ip_playlistID
+    order by s.title asc limit 1;
+    if first_song is null then
+    leave sp_main;
+    end if;
+    
+    -- call stream_content to start streaming
+    call stream_content(listener_ID, first_song); 
 end //
 delimiter ;
 
@@ -506,7 +628,42 @@ create procedure delete_playlist_songs (
     in ip_char_phrase varchar(20)
 )
 sp_main: begin
-	-- code here
+	-- variable declaration
+	declare playlist_ID varchar(20);
+    declare song_count int default 0;
+    declare song_match int;
+    
+    -- check if inputs are non-null
+    if ip_playlistID is null or ip_char_phrase is null then
+    leave sp_main;
+    end if;
+	
+    -- check if playlist exists
+    select playlistID into playlist_ID from playlist where playlistID = ip_playlistID;
+    if playlist_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if playlist contains 0 songs
+    select count(*) into song_count from makes_up m join song s on m.contentID = s.contentID
+    where m.playlistID = ip_playlistID and s.title like concat('%', ip_char_phrase, '%');
+    if song_count = 0 then
+    leave sp_main;
+    end if;
+    
+    -- delete songs that contain the input char/phrase from the playlist
+    delete from makes_up where playlistID = ip_playlistID and songID in (select s.contentID from song s join content c 
+    where s.title like concat('%', ip_char_phrase, '%'));
+    
+    -- rearrange the track orders
+    call resequence_track_order(ip_playlistID);
+    
+    -- delete entire playlist if playlist has no songs left
+    select count(*) into song_match from makes_up where playlistID = ip_playlistID;
+    if song_match = 0 then
+    delete from playlist where playlistID = ip_playlistID;
+    end if;
+
 end //
 delimiter ;
 
@@ -622,7 +779,41 @@ create procedure add_feature (
     in ip_creatorID varchar(20)
 )
 sp_main: begin
-    -- code here
+	-- variable declaration
+    declare content_ID varchar(20);
+    declare creator_ID varchar(20);
+    declare counter int;
+    
+    -- check if both inputs are non-null
+    if ip_contentID is null or ip_creatorID is null then 
+    leave sp_main;
+    end if;
+    
+    -- check if creator exists
+    select creatorID into creator_ID from creator where creatorID = ip_creatorID;
+    if creator_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if content exists
+    select contentID into content_ID from content where contentID = ip_contentID;
+    if content_ID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if the feature is already recorded
+    if exists (select 1 from creates where contentID = ip_contentID and creatorID = ip_creatorID) then
+    leave sp_main;
+    end if;
+    
+    -- check if content has no more than 5 creators associated with it
+    select count(*) into counter from creates where contentID = ip_contentID;
+    if counter >= 5 then
+    leave sp_main;
+    end if;
+    
+    -- insert
+    insert into creates (creatorID, contentID) values (ip_creatorID, ip_contentID);
 end //
 delimiter ;
 
