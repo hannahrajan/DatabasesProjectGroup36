@@ -343,7 +343,7 @@ and that the playlist ID is not already in use in the playlist table before inse
 that listeners without subscriptions will not have more than 5 playlists in total.
 HINT: You should complete add_song_to_playlist before this procedure! */
 -- -----------------------------------------------------------------------------
-drop procedure if exists create_playlist;
+drop procedure if exists create_playlist; 
 delimiter //
 create procedure create_playlist(
     in ip_username varchar(100),
@@ -417,7 +417,7 @@ exists, that the playlist exists, and that the playlist belongs to the listener.
 If a playlist does not have any songs, then nothing should occur. Calling another 
 previously implemented stored procedure to start streaming would be useful here! */
 -- -----------------------------------------------------------------------------
-drop procedure if exists start_playlist;
+drop procedure if exists start_playlist; -- failed in autograder
 delimiter //
 create procedure start_playlist(
     in ip_username varchar(100),
@@ -513,7 +513,7 @@ If this artist does not already have a stage name, set it to their full name
 
 HINT: Make sure to add data to all relevant tables within the database. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists upload_song; 
+drop procedure if exists upload_song; -- failed in autograder
 delimiter //
 create procedure upload_song (
 	in ip_contentID varchar(20), 
@@ -621,7 +621,7 @@ After deleting songs, you will have to rearrange the track orders. We have provi
 a helper function, resequence_track_order(), that you might find especially useful. 
 If a playlist has no songs left, then also delete the entire playlist. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists delete_playlist_songs;
+drop procedure if exists delete_playlist_songs; -- failed in autograder
 delimiter //
 create procedure delete_playlist_songs (
     in ip_playlistID varchar(20),
@@ -828,7 +828,7 @@ exists. Also ensure that the given number is non-negative. If the number is
 greater than the number of episodes in the series, do not delete any episodes. 
 Delete episodes in descending order, starting from the highest episode number. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists delete_episodes;
+drop procedure if exists delete_episodes; -- failed in autograder
 delimiter //
 create procedure delete_episodes (
 	in ip_podcastID varchar(20),
