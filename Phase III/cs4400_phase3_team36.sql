@@ -417,7 +417,7 @@ exists, that the playlist exists, and that the playlist belongs to the listener.
 If a playlist does not have any songs, then nothing should occur. Calling another 
 previously implemented stored procedure to start streaming would be useful here! */
 -- -----------------------------------------------------------------------------
-drop procedure if exists start_playlist; -- failed in autograder
+drop procedure if exists start_playlist;
 delimiter //
 create procedure start_playlist(
     in ip_username varchar(100),
@@ -431,7 +431,7 @@ sp_main: begin
     declare first_song varchar(20);
     
     -- check if inputs are non-null
-    if user_name is null or playlist_ID is null then
+    if ip_username is null or ip_playlistID is null then
 	leave sp_main;
 	end if;
     
@@ -455,9 +455,9 @@ sp_main: begin
     end if;
     
     -- check if playlist has songs
-    select s.songID into first_song from makes_up m join song s on m.playlistID = s.songID
+    select m.songID into first_song from makes_up m join content c on m.songID = c.contentID
     where m.playlistID = ip_playlistID
-    order by s.title asc limit 1;
+    order by c.title asc limit 1;
     if first_song is null then
     leave sp_main;
     end if;
