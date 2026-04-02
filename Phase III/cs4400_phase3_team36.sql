@@ -205,13 +205,13 @@ sp_main: begin
     
     -- check if listener exists
     select accountID into listener_ID from listener where accountID = ip_listenerID;
-    if listenerID is null then
+    if listener_ID is null then
 	leave sp_main;
 	end if;
     
     -- check if content exists
 	select contentID into content_ID from content where contentID = ip_contentID;
-    if listenerID is null then
+    if content_ID is null then
 	leave sp_main;
 	end if;
     
@@ -227,7 +227,7 @@ sp_main: begin
 	end if;
     
     -- update
-    update listener set content_ID = ip_contentID, Timestamp = 0 where accountID = ip.listenerID;
+    update listener set streams = ip_contentID, Timestamp = 0 where accountID = ip_listenerID;
 end //
 delimiter ;
 
@@ -645,15 +645,16 @@ sp_main: begin
     end if;
     
     -- check if playlist contains 0 songs
-    select count(*) into song_count from makes_up m join song s on m.contentID = s.contentID
-    where m.playlistID = ip_playlistID and s.title like concat('%', ip_char_phrase, '%');
+    select count(*) into song_count from makes_up m join song s on m.songID = s.contentID
+    where m.playlistID = ip_playlistID;
     if song_count = 0 then
     leave sp_main;
     end if;
     
     -- delete songs that contain the input char/phrase from the playlist
-    delete from makes_up where playlistID = ip_playlistID and songID in (select s.contentID from song s join content c 
-    where s.title like concat('%', ip_char_phrase, '%'));
+    delete from makes_up where playlistID = ip_playlistID and songID in (select s.contentID from song s join content c
+    on s.contentID = c.contentID
+    where c.title like concat('%', ip_char_phrase, '%'));
     
     -- rearrange the track orders
     call resequence_track_order(ip_playlistID);
@@ -790,7 +791,7 @@ sp_main: begin
     end if;
     
     -- check if creator exists
-    select creatorID into creator_ID from creator where creatorID = ip_creatorID;
+    select accountID into creator_ID from creator where accountID = ip_creatorID;
     if creator_ID is null then
     leave sp_main;
     end if;
