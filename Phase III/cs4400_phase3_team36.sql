@@ -573,6 +573,9 @@ sp_main: begin
         -- create song (place into song table)
         insert into song(contentID, creatorID, album_name) values
         (ip_contentID, ip_creatorID, ip_albumName);
+        -- create song (place into creates table)
+        insert into creates(contentID, creatorID) values
+        (ip_contentID, ip_creatorID);
 	end if;
 end //
 delimiter ; 
