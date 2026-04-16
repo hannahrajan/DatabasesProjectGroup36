@@ -1006,7 +1006,7 @@ exists. Also ensure that the given number is non-negative. If the number is
 greater than the number of episodes in the series, do not delete any episodes. 
 Delete episodes in descending order, starting from the highest episode number. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists delete_episodes; -- failed in autograder
+drop procedure if exists delete_episodes;
 delimiter //
 create procedure delete_episodes (
 	in ip_podcastID varchar(20),
@@ -1037,14 +1037,22 @@ sp_main: begin
     while num_deleted_episodes < ip_num_episodes do
 		-- find the podcast episode to delete
 		select contentID into curr_episodeID from podcast_episode where podcastID = ip_podcastID order by episode_number desc limit 1;
-        -- delete the podcast episode
+        -- delete the podcast episode from podcast episode and content
         delete from podcast_episode where contentID = curr_episodeID;
+        delete from content where contentID = curr_episodeID;
         -- increment number of deleted podcast episodes
         set num_deleted_episodes = num_deleted_episodes + 1;
     end while;
+    -- check if the podcast series (should be) empty; if so, delete it
+    if (num_episodes = num_deleted_episodes) then
+		delete from podcast_series where podcastID = ip_podcastID;
+	end if;
 end //
 delimiter ;
 
+call delete_episodes('POD2222', 2);
+select * from podcast_episode;
+select * from podcast_series;
 
 -- -----------------------------------------------------------------------------
 -- [18] remove_socials
