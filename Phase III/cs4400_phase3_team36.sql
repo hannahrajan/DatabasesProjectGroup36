@@ -169,7 +169,82 @@ create procedure add_podcast_episode(
 	in ip_podcast_description varchar(200)
 )
 sp_main: begin
-	-- code here
+	declare creator_ID varchar(20);
+    declare content_ID varchar(20);
+    declare podcast_ID varchar(20);
+    declare max_episode int;
+    declare numb_episodes int default 1;
+    declare episode_creatorID varchar(20);
+    declare episode_index int default 1;
+    
+    -- check only non-null input parameters are non-null
+	if ip_creatorID is null or ip_contentID is null or ip_length is null or ip_maturity_rating is null or ip_title is null
+		or ip_release_date is null or ip_language is null or ip_topic is null or ip_podcastID is null or ip_podcast_title is null
+		then
+	select 'At least one non-null field is null.';
+	leave sp_main;
+    end if;
+    
+    -- enforce domain constraints
+	
+    -- check creator exists
+	select accountID into creator_ID from creator where accountID = ip_creatorID;
+    if creator_ID is null then
+	select 'At least one creator is null.';
+    leave sp_main;
+    end if;
+    
+    -- check content id is not already used
+    select contentID into content_ID from content where contentID = ip_contentID;
+    if content_ID is not null then
+	select 'Content ID is already in use.';
+    leave sp_main;
+    end if;
+    
+    -- check if podcast already has episodes, they belong to the same creator
+    select count(pe.contentID) into numb_episodes from podcast_episode pe
+    where pe.podcastID = ip_podcastID;
+    
+    select max(pe.episode_number) into max_episode from podcast_episode pe
+    where pe.podcastID = ip_podcastID;
+    
+    if numb_episodes > 0 then 
+		while episode_index <= max_episode do
+			select c.creatorID into episode_creatorID from creates c join podcast_episode p on c.contentID = p.contentID
+			where episode_number = episode_index and p.podcastID = ip_podcastID;
+			if episode_creatorID != ip_creatorID then
+				leave sp_main;
+            end if;
+            
+            set episode_index = episode_index + 1;
+		end while;
+	end if;
+    
+    -- check if episode length falls within the allowed range
+    if ip_length < 0 or ip_length > 3600 then
+		leave sp_main;
+    end if;
+    
+    -- create podcast series if it does not already exist
+    if not (exists(select podcastID from podcast_series where podcastID = ip_podcastID)) then
+    insert into podcast_series(podcastID, title, description)
+    values (ip_podcastID, ip_podcast_title, ip_podcast_description);
+    end if;
+    
+    -- insert episode as new content item
+    insert into content(contentID, title, content_length, maturity, content_language, release_date)
+    values(ip_contentID, ip_title, ip_length, ip_maturity_rating, ip_language, ip_release_date);
+
+    -- link to creator
+    insert into creates (contentID, creatorID) values (ip_contentID, ip_creatorID);
+    
+    -- assign the next episode number in order for that podcast
+    select max(pe.episode_number) into max_episode from podcast_episode pe join podcast_series ps on pe.podcastID = ps.podcastID
+    where ps.title = ip_podcast_title;
+    set max_episode = max_episode + 1; -- add next episode number
+    
+    insert into podcast_episode(contentID, podcastID, topic, episode_number)
+    values(ip_contentID, ip_podcastID, ip_topic, max_episode);
 end //
 delimiter ;
 
@@ -289,7 +364,26 @@ create procedure pin_content(
 	in ip_contentID varchar(20)
 )
 sp_main: begin
-	-- code here
+		-- Ensure that the inputs are non-null and that the content and creator exists. 
+        if ip_creatorID is null or ip_contentID is null then
+        leave sp_main;
+        end if;
+        
+        if not (exists(select contentID from content where contentID = ip_contentID)) then 
+        leave sp_main;
+        end if;
+
+        if not (exists(select accountID from creator where accountID = ip_creatorID)) then 
+        leave sp_main;
+        end if;
+        
+    -- Ensure that the song belongs to the given creator
+		if not exists (select * from creates where contentID = ip_contentID and creatorID = ip_creatorID) then
+        leave sp_main;
+        end if;
+			
+    -- updates the creator so that the given content becomes the content shown on their creator page.
+		update creator set pinned = ip_contentID where accountID = ip_creatorID;
 end //
 delimiter ; 
 
@@ -404,7 +498,33 @@ create procedure add_song_to_playlist(
     in ip_contentID varchar(20)
 )
 sp_main: begin
-    -- code here
+	declare listener_ID varchar(20);
+    
+    -- ensure all inputs are non-null
+    if ip_username is null or ip_playlistID is null or ip_contentID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if playlist with given id exists and is owned by that listener
+    select accountID into listener_ID from listener where username = ip_username;
+    
+    if not (exists(select * from playlist where playlistID = ip_playlistID and listenerID = listener_ID)) then
+    leave sp_main;
+    end if;
+    
+    -- check if content id exists in song
+    if not (exists(select * from song where contentID = ip_contentID)) then
+    leave sp_main;
+    end if;
+    
+    -- check if song is already in playlist
+    if (exists(select * from makes_up where songID = ip_contentID and playlistID = ip_playlistID)) then
+    leave sp_main;
+    end if;
+    
+    -- insert into (note: fix track order)
+    insert into makes_up(songID, playlistID, track_order) values (ip_contentID, ip_playlistID, 1);
+    
 end //
 delimiter ;
 
@@ -495,7 +615,43 @@ create procedure create_user (
     in ip_user_type enum('creator', 'listener', 'both')
 )
 sp_main: begin
-    -- code here
+    -- check input is non-null
+    if ip_accountID is null or ip_fullname is null or ip_birthdate is null or ip_email is null then
+    leave sp_main;
+    end if;
+    
+    -- check accountID is unique
+    if ((select count(accountID) from user where accountID = ip_accountID) > 1) then 
+    leave sp_main;
+    end if;
+    
+    -- check if user is a MINOR
+    if (timestampdiff(year, birthdate, currdate()) < 13) then
+    leave sp_main;
+    end if;
+    
+    -- If the user is a listener, ensure that the username is non-null, and if streams is non-null, it references an
+    -- existing content and that time stamp is set to 0.
+    
+    if (exists(select * from listener where accountID = ip_accountID)) then
+		if ip_username is null then
+        leave sp_main;
+        end if;
+	end if;
+        
+        if (select streams from listener where accountID = ip_accountID) is not null then
+			if not (exists(select * from content where currentlyStreaming = contentID)) then
+            leave sp_main;
+            end if;
+			
+			if (select timestamp from listener where currentlyStreaming = streams) != 0 then
+            leave sp_main;
+            end if;
+		end if;
+	
+    insert into user (accountID, name, bdate, email) values (ip_accountID, ip_name, ip_bdate, ip_email);
+    
+    
 end //
 delimiter ; 
 
@@ -632,9 +788,8 @@ create procedure delete_playlist_songs (
 )
 sp_main: begin
 	-- variable declaration
-	declare playlist_ID varchar(20);
+	declare playlist_exists int;
     declare song_count int default 0;
-    declare song_match int;
     
     -- check if inputs are non-null
     if ip_playlistID is null or ip_char_phrase is null then
@@ -642,29 +797,27 @@ sp_main: begin
     end if;
 	
     -- check if playlist exists
-    select playlistID into playlist_ID from playlist where playlistID = ip_playlistID;
-    if playlist_ID is null then
+    select count(*) into playlist_exists from playlist where playlistID = ip_playlistID;
+    if playlist_exists = 0 then
     leave sp_main;
     end if;
     
-    -- check if playlist contains 0 songs
-    select count(*) into song_count from makes_up m join song s on m.songID = s.contentID
-    where m.playlistID = ip_playlistID;
+    -- check if playlist contains 0 songs that matches char/phrase
+    select count(*) into song_count from makes_up m join content c on m.songID = c.contentID
+    where m.playlistID = ip_playlistID and c.title like concat('%', ip_char_phrase, '%');
     if song_count = 0 then
     leave sp_main;
     end if;
     
     -- delete songs that contain the input char/phrase from the playlist
-    delete from makes_up where playlistID = ip_playlistID and songID in (select s.contentID from song s join content c
-    on s.contentID = c.contentID
-    where c.title like concat('%', ip_char_phrase, '%'));
+    delete m from makes_up m where playlistID = ip_playlistID and songID in (select contentID from content
+    where title like concat('%', ip_char_phrase, '%'));
     
     -- rearrange the track orders
     call resequence_track_order(ip_playlistID);
     
     -- delete entire playlist if playlist has no songs left
-    select count(*) into song_match from makes_up where playlistID = ip_playlistID;
-    if song_match = 0 then
+    if not exists (select 1 from makes_up where playlistID = ip_playlistID) then
     delete from playlist where playlistID = ip_playlistID;
     end if;
 
@@ -762,7 +915,24 @@ create procedure stop_stream (
 	in ip_accountID varchar(20) -- listener
 )
 sp_main: begin
-    -- code here
+    -- check if accountID is null
+    
+    if ip_accountID is null then
+    leave sp_main;
+    end if;
+    
+    -- check if account is a listener
+    
+    if not (exists(select * from listener where accountID = ip_accountID)) then
+    leave sp_main;
+    end if;
+    
+    -- check if listener is streaming content
+    if not (exists(select * from listener where streams is not null AND accountID = ip_accountID)) then
+    leave sp_main;
+    end if;
+    
+    update listener set streams = null, timestamp = null where accountID = ip_accountID;
 end //
 delimiter ;
 
@@ -842,11 +1012,12 @@ sp_main: begin
     declare num_deleted_episodes int default 0;
     declare curr_episodeID varchar(20);
     -- check for null
-	if (ip_podcastID is null or ip_num_episodes < 0) then 
+	if (ip_podcastID is null or ip_num_episodes is null or ip_num_episodes < 0) then 
 		select 'At least one of the inputs is null or invalid.';
         leave sp_main;
+        end if;
 	-- check if the podcast exists
-	elseif not (exists(select podcastID from podcast_series where podcastID = ip_podcastID)) then
+	if not (exists(select podcastID from podcast_series where podcastID = ip_podcastID)) then
 		select concat('The podcast ', ip_podcastID, ' does not exist.');
         leave sp_main;
 	end if;
@@ -891,6 +1062,37 @@ create procedure remove_socials (
 	in ip_creatorID varchar(20)
 )
 sp_main: begin
-    -- code here
+	declare first_alphabetically varchar(20);
+    declare min_handle_platform varchar(20);
+    
+    -- check valid creator
+    if not (exists(select * from creator where accountID = ip_creatorID)) then
+    leave sp_main;
+    end if;
+    
+    -- check if creator has made a podcast
+    if (exists(select * from creates where creatorID = ip_creatorID and contentID in (select contentID from podcast_episode))) then
+		delete from socials where platform != 'TikTok' and creatorID = ip_creatorID;
+	end if;
+
+	-- check if creator has made at least 2 albums
+    if (select count(*) from album where creatorID = ip_creatorID) >= 2 then
+		delete from socials where platform != 'SoundCloud' and creatorID = ip_creatorID;
+    end if;
+    
+    -- check if creator is born after jan 1 2000
+    if (exists(select * from user where accountID = ip_creatorID and bdate > '2000-01-01')) then
+		delete from socials where platform != 'Snapchat' and creatorID = ip_creatorID;
+	end if;
+    
+    -- delete all except alphabetically first
+    
+    select min(handle) into first_alphabetically from socials where (creatorID = ip_creatorID);
+    select platform into min_handle_platform from socials where (creatorID = ip_creatorID) and (handle = first_alphabetically);
+    delete from socials where creatorID = ip_creatorID and handle != first_alphabetically;
+    
+    if not (exists(select * from socials)) then
+    insert into socials (creatorID, platform, handle) values (ip_creatorID, min_handle_platform, first_alphabetically);
+	end if;
 end //
 delimiter ;
