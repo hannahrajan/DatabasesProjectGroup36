@@ -499,6 +499,7 @@ create procedure add_song_to_playlist(
 )
 sp_main: begin
 	declare listener_ID varchar(20);
+    declare next_track_order int;
     
     -- ensure all inputs are non-null
     if ip_username is null or ip_playlistID is null or ip_contentID is null then
@@ -523,10 +524,12 @@ sp_main: begin
     end if;
     
     -- insert into (note: fix track order)
-    insert into makes_up(songID, playlistID, track_order) values (ip_contentID, ip_playlistID, 1);
+    select ifnull(max(track_order), 0) + 1 into next_track_order from makes_up where playlistID = ip_playlistID;
+    insert into makes_up(songID, playlistID, track_order) values (ip_contentID, ip_playlistID, next_track_order);
     
 end //
 delimiter ;
+
 
 -- -----------------------------------------------------------------------------
 -- [10] start_playlist()
@@ -626,32 +629,35 @@ sp_main: begin
     end if;
     
     -- check if user is a MINOR
-    if (timestampdiff(year, birthdate, currdate()) < 13) then
+    if (timestampdiff(year, ip_birthdate, CURDATE()) < 13) then
     leave sp_main;
     end if;
     
-    -- If the user is a listener, ensure that the username is non-null, and if streams is non-null, it references an
-    -- existing content and that time stamp is set to 0.
-    
-    if (exists(select * from listener where accountID = ip_accountID)) then
-		if ip_username is null then
-        leave sp_main;
-        end if;
-	end if;
-        
-        if (select streams from listener where accountID = ip_accountID) is not null then
-			if not (exists(select * from content where currentlyStreaming = contentID)) then
+    -- If the user is a listener...
+    if(ip_user_type = 'listener' or ip_user_type = 'both') then
+		-- check if username is non-null
+        if ip_username is null then
+			select 'The provided listener has a null username.';
             leave sp_main;
-            end if;
-			
-			if (select timestamp from listener where currentlyStreaming = streams) != 0 then
+		elseif ip_currentlyStreaming is not null and not (exists(select * from content where ip_currentlyStreaming = contentID)) then
+			select 'The streamed content provided for the listener does not exist.';
             leave sp_main;
-            end if;
 		end if;
-	
-    insert into user (accountID, name, bdate, email) values (ip_accountID, ip_name, ip_bdate, ip_email);
+    end if;
     
+    -- Create the user. 
+    insert into user (accountID, name, bdate, email) values (ip_accountID, ip_fullname, ip_birthdate, ip_email);
     
+    -- If the user is a listener, create an entry in the listener table.
+	if(ip_user_type = 'listener' or ip_user_type = 'both') then
+		insert into listener(accountID, username, streams, timestamp) values (ip_accountID, ip_username, ip_currentlyStreaming, 0);
+    end if;
+    
+    -- If the user is a creator, create an entry in the creator table.
+    if(ip_user_type = 'creator' or ip_user_type = 'both') then
+		insert into creator(accountID, stage_name, biography) values (ip_accountID, ip_stagename, ip_bio);
+    end if;
+
 end //
 delimiter ; 
 
@@ -669,7 +675,7 @@ If this artist does not already have a stage name, set it to their full name
 
 HINT: Make sure to add data to all relevant tables within the database. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists upload_song; -- failed in autograder
+drop procedure if exists upload_song; 
 delimiter //
 create procedure upload_song (
 	in ip_contentID varchar(20), 
@@ -780,7 +786,7 @@ After deleting songs, you will have to rearrange the track orders. We have provi
 a helper function, resequence_track_order(), that you might find especially useful. 
 If a playlist has no songs left, then also delete the entire playlist. */
 -- -----------------------------------------------------------------------------
-drop procedure if exists delete_playlist_songs; -- failed in autograder
+drop procedure if exists delete_playlist_songs; 
 delimiter //
 create procedure delete_playlist_songs (
     in ip_playlistID varchar(20),
@@ -804,14 +810,14 @@ sp_main: begin
     
     -- check if playlist contains 0 songs that matches char/phrase
     select count(*) into song_count from makes_up m join content c on m.songID = c.contentID
-    where m.playlistID = ip_playlistID and c.title like concat('%', ip_char_phrase, '%');
+    where m.playlistID = ip_playlistID and m.songID like concat('%', ip_char_phrase, '%');
     if song_count = 0 then
     leave sp_main;
     end if;
     
     -- delete songs that contain the input char/phrase from the playlist
     delete m from makes_up m where playlistID = ip_playlistID and songID in (select contentID from content
-    where title like concat('%', ip_char_phrase, '%'));
+    where songID like concat('%', ip_char_phrase, '%'));
     
     -- rearrange the track orders
     call resequence_track_order(ip_playlistID);
@@ -823,7 +829,6 @@ sp_main: begin
 
 end //
 delimiter ;
-
 
 -- -----------------------------------------------------------------------------
 -- [14] merge_playlists()
