@@ -240,7 +240,7 @@ sp_main: begin
     
     -- assign the next episode number in order for that podcast
     select max(pe.episode_number) into max_episode from podcast_episode pe join podcast_series ps on pe.podcastID = ps.podcastID
-    where ps.title = ip_podcast_title;
+    where ps.podcastID = ip_podcastID;
     set max_episode = max_episode + 1; -- add next episode number
     
     insert into podcast_episode(contentID, podcastID, topic, episode_number)
@@ -875,7 +875,7 @@ sp_main: begin
 		select 'Both playlists inputted are the same.';
         leave sp_main;
 	-- check if the playlists are owned by the same listener
-	elseif not exists(select * from playlist as p1 join playlist as p2 on p1.listenerID = p2.listenerID where (p1.playlistID = 'P1111' and p2.playlistID = 'P2222')) then 
+	elseif not exists(select * from playlist as p1 join playlist as p2 on p1.listenerID = p2.listenerID where (p1.playlistID = ip_playlistID1 and p2.playlistID = ip_playlistID2)) then 
 		select 'The playlists are not owned by the same listener.';
         leave sp_main;
 	else 
@@ -1050,10 +1050,6 @@ sp_main: begin
 end //
 delimiter ;
 
-call delete_episodes('POD2222', 2);
-select * from podcast_episode;
-select * from podcast_series;
-
 -- -----------------------------------------------------------------------------
 -- [18] remove_socials
 -- -----------------------------------------------------------------------------
@@ -1075,37 +1071,39 @@ create procedure remove_socials (
 	in ip_creatorID varchar(20)
 )
 sp_main: begin
-	declare first_alphabetically varchar(20);
-    declare min_handle_platform varchar(20);
+	declare first_alphabetically varchar(50);
+    declare original_platform varchar(50);
     
     -- check valid creator
     if not (exists(select * from creator where accountID = ip_creatorID)) then
     leave sp_main;
     end if;
     
+    -- check if creator has 0 socials
+    if not exists (select 1 from socials where creatorID = ip_creatorID) then
+    leave sp_main;
+    end if;
+    
+    -- storing original alphabetically first handle and platform
+    select handle, platform into first_alphabetically, original_platform from socials where creatorID = ip_creatorID order by handle asc limit 1;
+    
     -- check if creator has made a podcast
     if (exists(select * from creates where creatorID = ip_creatorID and contentID in (select contentID from podcast_episode))) then
 		delete from socials where platform != 'TikTok' and creatorID = ip_creatorID;
-	end if;
 
 	-- check if creator has made at least 2 albums
-    if (select count(*) from album where creatorID = ip_creatorID) >= 2 then
+    elseif (select count(*) from album where creatorID = ip_creatorID) >= 2 then
 		delete from socials where platform != 'SoundCloud' and creatorID = ip_creatorID;
-    end if;
     
     -- check if creator is born after jan 1 2000
-    if (exists(select * from user where accountID = ip_creatorID and bdate > '2000-01-01')) then
+    elseif (exists(select * from user where accountID = ip_creatorID and bdate > '2000-01-01')) then
 		delete from socials where platform != 'Snapchat' and creatorID = ip_creatorID;
+	else delete from socials where creatorID = ip_creatorID and handle != first_alphabetically;
 	end if;
     
     -- delete all except alphabetically first
-    
-    select min(handle) into first_alphabetically from socials where (creatorID = ip_creatorID);
-    select platform into min_handle_platform from socials where (creatorID = ip_creatorID) and (handle = first_alphabetically);
-    delete from socials where creatorID = ip_creatorID and handle != first_alphabetically;
-    
-    if not (exists(select * from socials)) then
-    insert into socials (creatorID, platform, handle) values (ip_creatorID, min_handle_platform, first_alphabetically);
+    if not exists (select 1 from socials where creatorID = ip_creatorID) then
+    insert into socials (creatorID, platform, handle) values (ip_creatorID, original_platform, first_alphabetically);
 	end if;
 end //
 delimiter ;
